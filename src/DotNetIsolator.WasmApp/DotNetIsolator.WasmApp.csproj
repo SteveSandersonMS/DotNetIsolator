@@ -1,0 +1,63 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net7.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="MessagePack" Version="2.5.103" />
+		<PackageReference Include="Wasi.Sdk" Version="0.1.3-preview.10012" />
+	</ItemGroup>
+
+	<Target Name="GetWasiRuntimePackAssemblies" Outputs="@(WasiRuntimePackAssemblies)">
+		<ItemGroup>
+			<WasiRuntimePackAssemblies Include="$(WasiRuntimePackRoot)lib\$(TargetFramework)\*.dll" />
+		</ItemGroup>
+	</Target>
+
+	<Target Name="FilterBundledAssemblies" BeforeTargets="GenerateWasmBundleSources">
+		<!--
+		Although we could bundle all the assemblies, we're going to have them all available on disk
+		anyway, so to speed up the build and shrink the .wasm file, we can bundle only the ones needed
+		to call the entrypoint prior to setting up the assembly search hook.
+		-->
+		<ItemGroup>
+			<_WasmBundleFilesToExclude Include="@(WasmBundleFiles)"
+									   Condition="%(WasmBundleFiles.WasmRole) == 'assembly'
+										   AND %(WasmBundleFiles.Filename) != 'System.Private.CoreLib'
+										   AND %(WasmBundleFiles.Filename) != 'DotNetIsolator.WasmApp'
+										   AND %(WasmBundleFiles.Filename) != 'MessagePack'
+										   AND %(WasmBundleFiles.Filename) != 'MessagePack.Annotations'" />
+			<WasmBundleFiles Remove="@(_WasmBundleFilesToExclude)" />
+		</ItemGroup>
+	</Target>
+
+	<Target Name="RunWasmPreinitializer" AfterTargets="CopyWasmToOutput">
+		<PropertyGroup>
+			<WasiPreinitializeSourceFile>@(WasiSdkBinOutputFiles)</WasiPreinitializeSourceFile>
+			<WasiPreinitializerArgs>$(WasiPreinitializerArgs) --allow-wasi --init-func _start --keep-init-func false</WasiPreinitializerArgs>
+			<WasiPreinitializerArgs>$(WasiPreinitializerArgs) --mapdir /::$(WasiRuntimePackRoot)lib/$(TargetFramework)</WasiPreinitializerArgs>
+			<WasiPreinitializerArgs>$(WasiPreinitializerArgs) --wasm-bulk-memory=true --inherit-env true -o &quot;$(WasiPreinitializeSourceFile).pre&quot; &quot;$(WasiPreinitializeSourceFile)&quot;</WasiPreinitializerArgs>
+		</PropertyGroup>
+		<Message Importance="high" Text="Running WebAssembly preinitializer on $(WasiPreinitializeSourceFile)" />
+		<!-- The assembly search hook can't work during preinitialization because there's no .NET host to supply assemblies -->
+		<!-- So, during preinitialization, we rely on the assemblies being already bundled or in the mapped root directory -->
+		<Exec Command="wizer $(WasiPreinitializerArgs)" EnvironmentVariables="DISABLE_ASSEMBLY_SEARCH_HOOK=1" />
+		<Move SourceFiles="$(WasiPreinitializeSourceFile).pre" DestinationFiles="$(WasiPreinitializeSourceFile)" />
+	</Target>
+
+	<Target Name="Run wasm-opt" AfterTargets="RunWasmPreinitializer" Condition="'$(Configuration)' == 'Release'">
+		<Message Importance="high" Text="Running wasm-opt..." />
+		<Exec Command="wasm-opt -Oz --enable-bulk-memory $(WasiPreinitializeSourceFile) -o $(WasiPreinitializeSourceFile)" />
+	</Target>
+
+	<ItemGroup>
+		<WasiNativeFileReference Include="native\*.c" />
+		<WasiAfterRuntimeLoaded Include="dotnetisolator_add_assembly_search_hook" />
+	</ItemGroup>
+
+</Project>

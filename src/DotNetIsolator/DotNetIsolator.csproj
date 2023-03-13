@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net7.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<WasmAppProjectName>DotNetIsolator.WasmApp</WasmAppProjectName>
+		<VersionPrefix>0.1.0</VersionPrefix>
+		<VersionSuffix>dev</VersionSuffix>
+		<Authors>Steve Sanderson</Authors>
+  		<Company>Microsoft</Company>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<BundledFilesDir>IsolatedRuntimeHost\</BundledFilesDir>
+		<BundledWasmAssembliesDir>$(BundledFilesDir)WasmAssemblies\</BundledWasmAssembliesDir>
+		<NoWarn>$(NoWarn);NU5100</NoWarn> <!-- We're bundling some .dlls as content, so don't warn about them not being in lib -->
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="MessagePack" Version="2.5.103" />
+		<PackageReference Include="Wasmtime" Version="5.0.0" />
+	</ItemGroup>
+
+	<!-- Reference the WasmApp project in such a way that we acquire its .wasm and WebAssembly BCL (.dll) files, but not its primary assembly -->
+	<ItemGroup>		
+		<ProjectReference Include="..\DotNetIsolator.WasmApp\DotNetIsolator.WasmApp.csproj">
+		  <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+		</ProjectReference>
+		<Content Include="..\$(WasmAppProjectName)\bin\$(Configuration)\$(TargetFramework)\$(WasmAppProjectName).wasm">
+			<Visible>false</Visible>
+			<Link>$(BundledFilesDir)%(Filename)%(Extension)</Link>
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<Pack>true</Pack>
+			<PackageCopyToOutput>true</PackageCopyToOutput>
+			<PackagePath>contentFiles\any\any\$(BundledFilesDir)%(Filename)%(Extension)</PackagePath>
+		</Content>
+	</ItemGroup>
+	<Target Name="GetCopyWasiRuntimePackAssemblies" BeforeTargets="AssignTargetPaths">
+		<MSBuild Projects="..\$(WasmAppProjectName)\$(WasmAppProjectName).csproj" Targets="GetWasiRuntimePackAssemblies">
+			<Output TaskParameter="TargetOutputs" ItemName="WasiRuntimePackAssemblies" />
+		</MSBuild>
+		<ItemGroup>
+			<Content Include="@(WasiRuntimePackAssemblies)">
+				<Link>$(BundledWasmAssembliesDir)%(Filename)%(Extension)</Link>
+				<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+				<Pack>true</Pack>
+				<PackageCopyToOutput>true</PackageCopyToOutput>
+				<PackagePath>contentFiles\any\any\$(BundledWasmAssembliesDir)%(Filename)%(Extension)</PackagePath>
+			</Content>
+		</ItemGroup>
+	</Target>
+
+</Project>

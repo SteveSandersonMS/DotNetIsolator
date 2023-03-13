@@ -1,0 +1,51 @@
+name: BuildAll
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dotnet-version: [ '7.0.x' ]
+    steps:
+    - name: Get package version suffix
+      run: echo "PACKAGE_VERSION_SUFFIX=preview.$(printf $((${{ github.run_number }}+10000)))" >> $GITHUB_ENV
+    - uses: actions/checkout@v3
+    - name: Setup .NET Core SDK ${{ matrix.dotnet-version }}
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ matrix.dotnet-version }}
+    - name: Install wasm-opt
+      run: |
+        mkdir binaryen
+        cd binaryen
+        wget https://github.com/WebAssembly/binaryen/releases/download/version_112/binaryen-version_112-x86_64-linux.tar.gz
+        tar xf binaryen-*.tar.gz --strip-components 1
+        cd bin
+        echo $PWD >> $GITHUB_PATH
+        echo Added $PWD to path
+    - name: Install wizer
+      run: |
+        mkdir wizer
+        cd wizer
+        wget https://github.com/bytecodealliance/wizer/releases/download/v1.6.0/wizer-v1.6.0-x86_64-linux.tar.xz
+        tar xf wizer-*.tar.xz --strip-components 1
+        echo $PWD >> $GITHUB_PATH
+        echo Added $PWD to path
+    - name: .NET restore
+      run: dotnet restore
+    - name: .NET test
+      run: dotnet test test/DotNetIsolator.Test --no-restore --verbosity normal
+    - name: .NET pack
+      run: dotnet pack src/DotNetIsolator -c Release --no-restore /p:VersionSuffix=${{ env.PACKAGE_VERSION_SUFFIX }}
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: nuget-packages
+        path: src/DotNetIsolator/bin/Release/*.nupkg
+        if-no-files-found: error

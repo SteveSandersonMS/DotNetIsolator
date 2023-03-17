@@ -1,4 +1,5 @@
 ﻿using MessagePack;
+using MessagePack.Resolvers;
 
 namespace DotNetIsolator.WasmApp;
 
@@ -28,6 +29,6 @@ public static class Serialization
     {
         // TODO: Should we really be pinning the result value here, or is it safe to return
         // a MonoObject* to unmanaged code and then use mono_gchandle_new(..., true) from there?
-        return MessagePackSerializer.Typeless.Serialize(value);
+        return MessagePackSerializer.Serialize(value, ContractlessStandardResolverAllowPrivate.Options);
     }
 }

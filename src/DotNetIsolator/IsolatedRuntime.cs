@@ -1,4 +1,5 @@
 ﻿using MessagePack;
+using MessagePack.Resolvers;
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -228,7 +229,12 @@ public class IsolatedRuntime : IDisposable
                 var resultBytes = _memory
                     .GetSpan(invocation.ResultSerialized, invocation.ResultSerializedLength)
                     .ToArray();
-                var result = (TRes)MessagePackSerializer.Typeless.Deserialize(resultBytes)!;
+
+                // Note that we don't deserialize using MessagePackSerializer.Typeless because we don't want the guest code
+                // to be able to make the host instantiate arbitrary types. The host will only instantiate the types statically
+                // defined by the type graph of TRes.
+                var result = MessagePackSerializer.Deserialize<TRes>(resultBytes, ContractlessStandardResolverAllowPrivate.Options)!;
+
                 ReleaseGCHandle(invocation.ResultSerializedGCHandle);
                 return result;
             }

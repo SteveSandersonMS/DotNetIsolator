@@ -164,7 +164,7 @@ public class MethodInvocationTest : IDisposable
                     PublicDictionaryProp = new Dictionary<string, object>
                     {
                         { "key1", "Value 1" },
-                        { "key2", new object() },
+                        { "key2", true },
                         { "key3", new DateTime(2023, 3, 15) },
                     }
                 };

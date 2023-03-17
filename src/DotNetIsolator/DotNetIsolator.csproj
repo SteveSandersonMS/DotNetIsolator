@@ -20,6 +20,10 @@
 		<PackageReference Include="Wasmtime" Version="5.0.0" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<Content Include="build\DotNetIsolator.props" PackagePath="build" />
+	</ItemGroup>
+
 	<!-- Reference the WasmApp project in such a way that we acquire its .wasm and WebAssembly BCL (.dll) files, but not its primary assembly -->
 	<ItemGroup>		
 		<ProjectReference Include="..\DotNetIsolator.WasmApp\DotNetIsolator.WasmApp.csproj">

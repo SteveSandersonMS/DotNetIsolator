@@ -1,0 +1,8 @@
+<Project>
+    <ItemGroup>
+        <!-- When people reference this package, we don't want the content files showing up in Solution Explorer -->
+        <Content Update="@(Content)">
+            <Visible Condition="'%(NuGetItemType)' == 'Content' and '%(NuGetPackageId)' == 'DotNetIsolator'">false</Visible>
+        </Content>
+    </ItemGroup>
+</Project>

@@ -231,7 +231,7 @@ var getAgeMethod = isolatedRuntime.GetMethod(typeof(Person), "GetAge");
 
 If you want to rely on this isolation as a critical security boundary in your application, you should bear in mind that:
 
- * **This is an experimental prerelease package**. No security review has taken place. There could be defects that allow guest code to cause unintential effects on the host.
+ * **This is an experimental prerelease package**. No security review has taken place. There could be defects that allow guest code to cause unintentional effects on the host.
  * WebAssembly itself defines an extremely well-proven sandbox (browsers run untrusted WebAssembly modules from any website, and have done so for years with a solid track record), but:
    * Wasmtime is a different implementation than what runs inside your browser. Learn more at [Security and Correctness in Wasmtime](https://bytecodealliance.org/articles/security-and-correctness-in-wasmtime).
    * The security model for WebAssembly doesn't directly address side-channel attacks (e.g., [spectre](https://en.wikipedia.org/wiki/Spectre_(security_vulnerability))). There are robust solutions for this but it's outside the scope of this repo.

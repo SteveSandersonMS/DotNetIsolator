@@ -112,7 +112,7 @@ using var host = new IsolatedRuntimeHost()
     {
         switch (assemblyName)
         {
-            case "MyAssembly.dll":
+            case "MyAssembly":
                 return File.ReadAllBytes("some/path/to/MyAssembly.dll");
         }
 
@@ -133,59 +133,19 @@ using var runtime2 = new IsolatedRuntime(host);
 
 Currently, each runtime takes ~8ms to instantiate.
 
-### Instantiating isolated objects
-
-You can instantiate an object inside an `IsolatedRuntime` as follows:
-
-```cs
-// Generic API
-IsolatedObject obj1 = runtime.CreateObject<Person>();
-
-// String-based API (useful if the host app doesn't reference the assembly containing the type)
-IsolatedObject obj2 = runtime.CreateObject("MyAssembly", "MyNamespace", "Person");
-```
-
-### Calling methods on isolated objects
-
-You can use `Invoke` or `InvokeVoid` to find a method and invoke it in a single step. For example, if the object has a method `void DoSomething(int value)`:
-
-```cs
-isolatedObject.InvokeVoid("DoSomething", 123);
-```
-
-If it has a return value, you must specify the type as a generic parameter. For example, if the object has a method `TimeSpan GetAge(bool includeGestation)`:
-
-```cs
-TimeSpan result = isolatedObject.Invoke<bool, TimeSpan>("GetAge", /* includeGestation */ true);
-```
-
-Alternatively you can capture a reference to an `IsolateMethod` so you can invoke it later. This is similar to a `MethodInfo` so it isn't bound to a specific target object.
-
-```cs
-var getAgeMethod = isolatedObject.FindMethod("GetAge");
-
-// ... then later:
-var age = getAgeMethod.Invoke<bool, TimeSpan>(isolatedObject, /* includeGestation */ true);
-```
-
-You can also find methods without having to instantiate any objects first:
-
-```cs
-var getAgeMethod = isolatedRuntime.GetMethod(typeof(Person), "GetAge");
-```
-
 ### Calling lambdas
 
-Rather than explicitly instantiating `IsolatedObject` and calling `Invoke` on those objects, you can much more easily just call lambdas on the `IsolatedRuntime` directly:
+Once you have an `IsolatedRuntime`, you can dispatch calls into them by using `Invoke` and lambda methods:
 
 ```cs
 var person1 = new Person(3);
 var person2 = new Person(9);
 
-var sumOfAges = isolatedRuntime.Invoke(() =>
+var sumOfAges = runtime.Invoke(() =>
 {
-    // You can use closure-captured values/objects too. They will be serialized
-    // into the isolated runtime using MessagePack.
+    // This runs inside the isolated runtime.
+    // Notice that we can use closure-captured values/objects too.
+    // They will be serialized in using MessagePack.
     return person1.Age + person2.Age;
 });
 
@@ -222,6 +182,51 @@ private static void Main(string[] args)
 }
 ```
 
+### Instantiating isolated objects
+
+Using lambdas is convenient, but only works if the isolated runtime is allowed to load the assemblies from your `bin` directory (because that's where the code is).
+
+As an alternative, you can manually instantiate isolated objects inside the isolated runtime, then call methods on them. For example:
+
+```cs
+// Generic API
+IsolatedObject obj1 = runtime.CreateObject<Person>();
+
+// String-based API (useful if the host app doesn't reference the assembly containing the type)
+IsolatedObject obj2 = runtime.CreateObject("MyAssembly", "MyNamespace", "Person");
+```
+
+`CreateObject` requires the object type to have a parameterless constructor. Support for constructor parameters isn't yet implemented (but would be simple to do).
+
+### Calling methods on isolated objects
+
+You can use `Invoke` or `InvokeVoid` to find a method and invoke it in a single step. For example, if the object has a method `void DoSomething(int value)`:
+
+```cs
+isolatedObject.InvokeVoid("DoSomething", 123);
+```
+
+If it has a return value, you must specify the type as a generic parameter. For example, if the object has a method `TimeSpan GetAge(bool includeGestation)`:
+
+```cs
+TimeSpan result = isolatedObject.Invoke<bool, TimeSpan>("GetAge", /* includeGestation */ true);
+```
+
+Alternatively you can capture a reference to an `IsolateMethod` so you can invoke it later. This is similar to a `MethodInfo` so it isn't bound to a specific target object.
+
+```cs
+var getAgeMethod = isolatedObject.FindMethod("GetAge");
+
+// ... then later:
+var age = getAgeMethod.Invoke<bool, TimeSpan>(isolatedObject, /* includeGestation */ true);
+```
+
+You can also find methods without having to instantiate any objects first:
+
+```cs
+var getAgeMethod = isolatedRuntime.GetMethod(typeof(Person), "GetAge");
+```
+
 ## Security notes
 
 If you want to rely on this isolation as a critical security boundary in your application, you should bear in mind that:
@@ -229,7 +234,7 @@ If you want to rely on this isolation as a critical security boundary in your ap
  * **This is an experimental prerelease package**. No security review has taken place. There could be defects that allow guest code to cause unintential effects on the host.
  * WebAssembly itself defines an extremely well-proven sandbox (browsers run untrusted WebAssembly modules from any website, and have done so for years with a solid track record), but:
    * Wasmtime is a different implementation than what runs inside your browser. Learn more at [Security and Correctness in Wasmtime](https://bytecodealliance.org/articles/security-and-correctness-in-wasmtime).
-   * The security model for WebAssembly doesn't directly address side-channel attacks (e.g., [spectre](https://en.wikipedia.org/wiki/Spectre_(security_vulnerability))). Further isolation such as process boundaries are needed in some scenarios.
+   * The security model for WebAssembly doesn't directly address side-channel attacks (e.g., [spectre](https://en.wikipedia.org/wiki/Spectre_(security_vulnerability))). There are robust solutions for this but it's outside the scope of this repo.
 
 In summary:
 

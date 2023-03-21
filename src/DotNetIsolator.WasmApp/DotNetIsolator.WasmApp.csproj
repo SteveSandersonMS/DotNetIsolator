@@ -10,7 +10,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="MessagePack" Version="2.5.103" />
-		<PackageReference Include="Wasi.Sdk" Version="0.1.3-preview.10012" />
+		<PackageReference Include="Wasi.Sdk" Version="0.1.4-preview.10020" />
 	</ItemGroup>
 
 	<Target Name="GetWasiRuntimePackAssemblies" Outputs="@(WasiRuntimePackAssemblies)">

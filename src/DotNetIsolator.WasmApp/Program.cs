@@ -6,10 +6,7 @@ AppContext.SetSwitch("System.Resources.UseSystemResourceKeys", true);
 AppContext.SetSwitch("System.Globalization.Invariant", true);
 
 // For preinit, warm up the serialization code paths
-var serialized = DotNetIsolator.WasmApp.Serialization.Serialize(new Dictionary<string, object>
-{
-    { "key1", new List<string> { "a", "b" } },
-    { "key2", true },
-    { "key3", 123 },
-});
-DotNetIsolator.WasmApp.Serialization.Deserialize(serialized);
+var captured = new { prop1 = new List<string> { "a", "b" } };
+var lambda = (string a, bool b) => { Console.WriteLine(a + b + captured.prop1.Count + System.Runtime.InteropServices.RuntimeInformation.OSArchitecture); };
+var serialized2 = DotNetIsolator.WasmApp.Serialization.Serialize(lambda.Target!);
+var deserialized2 = DotNetIsolator.WasmApp.Serialization.Deserialize(serialized2);

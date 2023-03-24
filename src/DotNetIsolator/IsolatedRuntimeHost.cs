@@ -89,6 +89,58 @@ public class IsolatedRuntimeHost : IDisposable
     private void AddIsolatedImports()
     {
         Linker.DefineFunction("dotnetisolator", "request_assembly", (CallerFunc<int, int, int, int, int>)HandleRequestAssembly);
+        Linker.DefineFunction("dotnetisolator", "set_timeout", (CallerAction<int>)HandleSetTimeout);
+        Linker.DefineFunction("dotnetisolator", "queue_callback", (CallerAction)HandleQueueCallback);
+    }
+
+    private void HandleSetTimeout(Caller caller, int timeout)
+    {
+        var runtime = IsolatedRuntime.FromStore(caller.Store);
+
+        ThreadPool.QueueUserWorkItem(static async data =>
+        {
+            var (runtime, timeout) = data;
+
+            await Task.Delay(timeout + 10); // TODO: Find a more robust way to make the timer callback run. This doesn't always run if the 10ms buffer is removed.
+
+            try
+            {
+                // TODO: Have something like a sync context so we know there's only one top-level
+                // callstack in the guest at a time. Currently this just relies on hoping that
+                // the guest is idle.
+                var method = runtime.GetMethod("System.Private.CoreLib.dll", "System.Threading", null, "TimerQueue", "TimeoutCallback", -1);
+                method.InvokeVoid(null);
+            }
+            catch (Exception ex)
+            {
+                // This logic is like mini-wasm.c's mono_set_timeout_exec, which also has to swallow exceptions because
+                // we're outside the context of any callstack.
+                // TODO: Consider trying to call some kind of unhandled exception function inside the runtime
+                Console.Error.WriteLine(ex);
+            }
+        }, (runtime, timeout), true);
+    }
+
+    private void HandleQueueCallback(Caller caller)
+    {
+        var runtime = IsolatedRuntime.FromStore(caller.Store);
+        ThreadPool.QueueUserWorkItem(static async (runtime) =>
+        {
+            // TODO: Have something like a sync context so we know only one thread is calling at a time
+            await Task.Yield();
+            try
+            {
+                var method = runtime.GetMethod("System.Private.CoreLib.dll", "System.Threading", null, "ThreadPool", "Callback", -1);
+                method.InvokeVoid(null);
+            }
+            catch (Exception ex)
+            {
+                // This logic is like mini-wasm.c's mono_set_timeout_exec, which also has to swallow exceptions because
+                // we're outside the context of any callstack.
+                // TODO: Consider trying to call some kind of unhandled exception function inside the runtime
+                Console.Error.WriteLine(ex);
+            }
+        }, runtime, false);
     }
 
     private int HandleRequestAssembly(Caller caller, int assemblyNamePtr, int assemblyNameLen, int suppliedBytesPtr, int suppliedBytesLen)

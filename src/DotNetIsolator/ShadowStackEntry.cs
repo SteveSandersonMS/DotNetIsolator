@@ -1,6 +1,6 @@
 ﻿namespace DotNetIsolator;
 
-internal readonly ref struct ShadowStackEntry<T> where T: struct
+internal readonly ref struct ShadowStackEntry<T> where T: unmanaged
 {
     public readonly ref T Value;
     public readonly int Address;

@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Wasmtime;
 
 namespace DotNetIsolator;
@@ -26,11 +27,11 @@ internal class ShadowStack : IDisposable
         _stackPtr = _stackBasePtr;
     }
 
-    public ShadowStackEntry<T> Push<T>() where T: struct
+    public ShadowStackEntry<T> Push<T>() where T: unmanaged
     {
         var ptr = _stackPtr;
 
-        var len = Marshal.SizeOf<T>();
+        var len = Unsafe.SizeOf<T>();
         _stackPtr += len;
 
         var valueBytes = _memory.GetSpan(ptr, len);
@@ -39,9 +40,9 @@ internal class ShadowStack : IDisposable
         return new ShadowStackEntry<T>(this, ref value, ptr);
     }
 
-    public void Pop<T>(int expectedAddress) where T : struct
+    public void Pop<T>(int expectedAddress) where T : unmanaged
     {
-        var len = Marshal.SizeOf<T>();
+        var len = Unsafe.SizeOf<T>();
         _stackPtr -= len;
 
         if (_stackPtr != expectedAddress)

@@ -28,6 +28,7 @@ public class IsolatedRuntime : IDisposable
     {
         var store = new Store(host.Engine);
         store.SetWasiConfiguration(host.WasiConfigurationOrDefault);
+        store.SetData(this);
 
         _store = store;
         _instance = host.Linker.Instantiate(store, host.Module);
@@ -52,6 +53,17 @@ public class IsolatedRuntime : IDisposable
         // _start is already called in preinitialization, so we can skip it now
         // var startExport = _instance.GetAction("_start") ?? throw new InvalidOperationException("Couldn't find export '_start'");
         // startExport.Invoke();
+    }
+
+    internal static IsolatedRuntime FromStore(Store store)
+    {
+        var runtime = (IsolatedRuntime?)store.GetData();
+        if (runtime is null)
+        {
+            throw new InvalidOperationException("Runtime was not set on the store");
+        }
+
+        return runtime;
     }
 
     internal ShadowStack ShadowStack => _shadowStack;

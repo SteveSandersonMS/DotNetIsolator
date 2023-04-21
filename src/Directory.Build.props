@@ -1,5 +1,6 @@
 <Project>
     <PropertyGroup>
+        <PackageOutputPath>$(MSBuildThisFileDirectory)../artifacts</PackageOutputPath>
         <VersionPrefix>0.1.0</VersionPrefix>
         <VersionSuffix>dev</VersionSuffix>
         <Authors>Steve Sanderson</Authors>

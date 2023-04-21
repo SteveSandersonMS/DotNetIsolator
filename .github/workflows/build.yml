@@ -42,10 +42,12 @@ jobs:
     - name: .NET test
       run: dotnet test test/DotNetIsolator.Test --no-restore --verbosity normal
     - name: .NET pack
-      run: dotnet pack src/DotNetIsolator -c Release --no-restore /p:VersionSuffix=${{ env.PACKAGE_VERSION_SUFFIX }}
+      run: |
+        dotnet pack src/DotNetIsolator -c Release --no-restore /p:VersionSuffix=${{ env.PACKAGE_VERSION_SUFFIX }}
+        dotnet pack src/DotNetIsolator.Guest -c Release --no-restore /p:VersionSuffix=${{ env.PACKAGE_VERSION_SUFFIX }}
     - name: Upload artifacts
       uses: actions/upload-artifact@v3
       with:
         name: nuget-packages
-        path: src/DotNetIsolator/bin/Release/*.nupkg
+        path: artifacts/*.nupkg
         if-no-files-found: error

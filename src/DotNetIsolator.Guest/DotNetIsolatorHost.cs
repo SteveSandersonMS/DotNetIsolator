@@ -7,6 +7,9 @@ namespace DotNetIsolator;
 
 public static class DotNetIsolatorHost
 {
+    public static unsafe void Invoke(string callbackName, params object[] args)
+        => Invoke<object>(callbackName, args);
+
     public static unsafe T Invoke<T>(string callbackName, params object[] args)
     {
         var argsSerialized = args.Select(a => a is null
@@ -20,10 +23,10 @@ public static class DotNetIsolatorHost
         fixed (void* callInfoPtr = callInfoBytes)
         {
             var success = Interop.CallHost(callInfoPtr, callInfoBytes.Length, out var resultPtr, out var resultLength);
-            var result = new Span<byte>(resultPtr, resultLength);
+            var result = (int)resultPtr == 0 ? null : new Span<byte>(resultPtr, resultLength);
             if (success)
             {
-                return MessagePackSerializer.Deserialize<T>(result.ToArray(), ContractlessStandardResolverAllowPrivate.Options);
+                return (int)resultPtr == 0 ? default! : MessagePackSerializer.Deserialize<T>(result.ToArray(), ContractlessStandardResolverAllowPrivate.Options);
             }
             else
             {

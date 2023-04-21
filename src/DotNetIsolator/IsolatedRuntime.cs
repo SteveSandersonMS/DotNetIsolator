@@ -349,14 +349,14 @@ public class IsolatedRuntime : IDisposable
             }
 
             var result = callback.DynamicInvoke(deserializedArgs);
-            var resultBytes = MessagePackSerializer.Serialize(
+            var resultBytes = result is null ? null : MessagePackSerializer.Serialize(
                 callback.Method.ReturnType,
                 result,
                 ContractlessStandardResolverAllowPrivate.Options); ; ;
 
-            var resultPtr = CopyValue<byte>(resultBytes, false);
+            var resultPtr = resultBytes is null ? 0 : CopyValue<byte>(resultBytes, false);
             _memory.WriteInt32(resultPtrPtr, resultPtr);
-            _memory.WriteInt32(resultLengthPtr, resultBytes.Length);
+            _memory.WriteInt32(resultLengthPtr, resultBytes is null ? 0 : resultBytes.Length);
             return 1; // Success
         }
         catch (Exception ex)

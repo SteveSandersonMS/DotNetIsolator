@@ -16,6 +16,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <ProjectReference Include="..\..\src\DotNetIsolator.Guest\DotNetIsolator.Guest.csproj" />
 	  <ProjectReference Include="..\..\src\DotNetIsolator\DotNetIsolator.csproj" />
 	</ItemGroup>
 

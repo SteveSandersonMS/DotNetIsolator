@@ -21,6 +21,7 @@ public class IsolatedRuntime : IDisposable
     private readonly Action<int> _releaseObject;
     private readonly ConcurrentDictionary<(string AssemblyName, string? Namespace, string TypeName, string MethodName, int NumArgs), IsolatedMethod> _methodLookupCache = new();
     private readonly ShadowStack _shadowStack;
+    private readonly Dictionary<string, MulticastDelegate> _registeredCallbacks = new();
     private bool _isDisposed;
 
     public IsolatedRuntime(IsolatedRuntimeHost host)
@@ -311,6 +312,11 @@ public class IsolatedRuntime : IDisposable
         }
     }
 
+    public void RegisterCallback<T0, T1, TResult>(string name, Func<T0, T1, TResult> callback)
+    {
+        _registeredCallbacks.Add(name, callback);
+    }
+
     private IsolatedMethod LookupDelegateMethod(MulticastDelegate @delegate)
     {
         var method = @delegate.Method;
@@ -323,13 +329,33 @@ public class IsolatedRuntime : IDisposable
     {
         try
         {
-            var invocationString = _memory.ReadString(invocationPtr, invocationLength);
-            var result = $"You passed [{invocationString}]";
+            var invocationInfo = MessagePackSerializer.Deserialize<GuestToHostCall>(
+                _memory.GetSpan<byte>(invocationPtr, invocationLength).ToArray(), ContractlessStandardResolverAllowPrivate.Options);
+            if (!_registeredCallbacks.TryGetValue(invocationInfo.CallbackName, out var callback))
+            {
+                var errorString = Encoding.UTF8.GetBytes($"There is no registered callback with name '{invocationInfo.CallbackName}'");
+                var errorStringPtr = CopyValue<byte>(errorString, false);
+                _memory.WriteInt32(resultPtrPtr, errorStringPtr);
+                _memory.WriteInt32(resultLengthPtr, errorString.Length);
+                return 0;
+            }
 
-            throw new InvalidTimeZoneException("Pp");
+            var expectedParameterTypes = callback.Method.GetParameters();
+            var deserializedArgs = new object?[expectedParameterTypes.Length];
+            for (var i = 0; i < expectedParameterTypes.Length; i++)
+            {
+                deserializedArgs[i] = MessagePackSerializer.Deserialize(
+                    expectedParameterTypes[i].ParameterType,
+                    invocationInfo.ArgsSerialized[i],
+                    ContractlessStandardResolverAllowPrivate.Options);
+            }
+
+            var result = callback.DynamicInvoke(deserializedArgs);
             var resultBytes = MessagePackSerializer.Serialize(
+                callback.Method.ReturnType,
                 result,
-                ContractlessStandardResolverAllowPrivate.Options);
+                ContractlessStandardResolverAllowPrivate.Options); ; ;
+
             var resultPtr = CopyValue<byte>(resultBytes, false);
             _memory.WriteInt32(resultPtrPtr, resultPtr);
             _memory.WriteInt32(resultLengthPtr, resultBytes.Length);

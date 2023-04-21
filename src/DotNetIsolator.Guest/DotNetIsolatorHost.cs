@@ -2,11 +2,18 @@
 using MessagePack.Resolvers;
 using MessagePack;
 using System.Text;
+using DotNetIsolator.Internal;
 
 namespace DotNetIsolator;
 
 public static class DotNetIsolatorHost
 {
+    static readonly MessagePackSerializerOptions CallFromGuestResolverOptions =
+        MessagePackSerializerOptions.Standard.WithResolver(
+            CompositeResolver.Create(
+                GeneratedResolver.Instance,
+                ContractlessStandardResolverAllowPrivate.Instance));
+
     public static unsafe void Invoke(string callbackName, params object[] args)
         => Invoke<object>(callbackName, args);
 
@@ -18,7 +25,7 @@ public static class DotNetIsolatorHost
             .ToArray();
 
         var callInfo = new GuestToHostCall { CallbackName = callbackName, ArgsSerialized = argsSerialized };
-        var callInfoBytes = MessagePackSerializer.Serialize(callInfo, ContractlessStandardResolverAllowPrivate.Options);
+        var callInfoBytes = MessagePackSerializer.Serialize(callInfo, CallFromGuestResolverOptions);
 
         fixed (void* callInfoPtr = callInfoBytes)
         {

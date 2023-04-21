@@ -1,4 +1,5 @@
-﻿using MessagePack;
+﻿using DotNetIsolator.Internal;
+using MessagePack;
 using MessagePack.Resolvers;
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
@@ -9,6 +10,12 @@ namespace DotNetIsolator;
 
 public class IsolatedRuntime : IDisposable
 {
+    static readonly MessagePackSerializerOptions CallFromGuestResolverOptions =
+        MessagePackSerializerOptions.Standard.WithResolver(
+            CompositeResolver.Create(
+                GeneratedResolver.Instance,
+                ContractlessStandardResolverAllowPrivate.Instance));
+
     private readonly Store _store;
     private readonly Instance _instance;
     private readonly Memory _memory;
@@ -340,7 +347,9 @@ public class IsolatedRuntime : IDisposable
         try
         {
             var invocationInfo = MessagePackSerializer.Deserialize<GuestToHostCall>(
-                _memory.GetSpan<byte>(invocationPtr, invocationLength).ToArray(), ContractlessStandardResolverAllowPrivate.Options);
+                _memory.GetSpan<byte>(invocationPtr, invocationLength).ToArray(),
+                CallFromGuestResolverOptions);
+
             if (!_registeredCallbacks.TryGetValue(invocationInfo.CallbackName, out var callback))
             {
                 var errorString = Encoding.UTF8.GetBytes($"There is no registered callback with name '{invocationInfo.CallbackName}'");
@@ -357,7 +366,7 @@ public class IsolatedRuntime : IDisposable
                 deserializedArgs[i] = MessagePackSerializer.Deserialize(
                     expectedParameterTypes[i].ParameterType,
                     invocationInfo.ArgsSerialized[i],
-                    ContractlessStandardResolverAllowPrivate.Options);
+                    CallFromGuestResolverOptions);
             }
 
             var result = callback.DynamicInvoke(deserializedArgs);

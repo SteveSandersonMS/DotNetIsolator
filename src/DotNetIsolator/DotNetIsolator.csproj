@@ -21,6 +21,7 @@
 
 	<ItemGroup>
 		<Compile Include="..\DotNetIsolator.Guest\GuestToHostCall.cs" />
+		<Compile Include="..\DotNetIsolator.Guest\generated\MessagePackGenerated.cs" />
 	</ItemGroup>
 
 	<!-- Reference the WasmApp project in such a way that we acquire its .wasm and WebAssembly BCL (.dll) files, but not its primary assembly -->

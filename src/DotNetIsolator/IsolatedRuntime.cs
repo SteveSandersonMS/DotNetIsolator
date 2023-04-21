@@ -363,17 +363,29 @@ public class IsolatedRuntime : IDisposable
             var deserializedArgs = new object?[expectedParameterTypes.Length];
             for (var i = 0; i < expectedParameterTypes.Length; i++)
             {
-                deserializedArgs[i] = MessagePackSerializer.Deserialize(
-                    expectedParameterTypes[i].ParameterType,
-                    invocationInfo.ArgsSerialized[i],
-                    CallFromGuestResolverOptions);
+                if (invocationInfo.IsRawCall)
+                {
+                    // Assumes the parameter type is byte[]
+                    deserializedArgs[i] = invocationInfo.Args![i]?.ToArray();
+                }
+                else
+                {
+                    deserializedArgs[i] = MessagePackSerializer.Deserialize(
+                        expectedParameterTypes[i].ParameterType,
+                        invocationInfo.Args[i],
+                        CallFromGuestResolverOptions);
+                }
             }
 
             var result = callback.DynamicInvoke(deserializedArgs);
-            var resultBytes = result is null ? null : MessagePackSerializer.Serialize(
-                callback.Method.ReturnType,
-                result,
-                ContractlessStandardResolverAllowPrivate.Options); ; ;
+            var resultBytes = result is null
+                ? null
+                : invocationInfo.IsRawCall
+                    ? (byte[])result
+                    : MessagePackSerializer.Serialize(
+                        callback.Method.ReturnType,
+                        result,
+                        ContractlessStandardResolverAllowPrivate.Options);
 
             var resultPtr = resultBytes is null ? 0 : CopyValue<byte>(resultBytes, false);
             _memory.WriteInt32(resultPtrPtr, resultPtr);

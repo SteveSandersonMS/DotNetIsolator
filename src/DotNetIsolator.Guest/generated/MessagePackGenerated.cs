@@ -103,19 +103,14 @@ namespace MessagePack.Formatters.DotNetIsolator.Internal
 {
     public sealed class GuestToHostCallFormatter : global::MessagePack.Formatters.IMessagePackFormatter<global::DotNetIsolator.Internal.GuestToHostCall>
     {
-        // CallbackName
-        private static global::System.ReadOnlySpan<byte> GetSpan_CallbackName() => new byte[1 + 12] { 172, 67, 97, 108, 108, 98, 97, 99, 107, 78, 97, 109, 101 };
-        // ArgsSerialized
-        private static global::System.ReadOnlySpan<byte> GetSpan_ArgsSerialized() => new byte[1 + 14] { 174, 65, 114, 103, 115, 83, 101, 114, 105, 97, 108, 105, 122, 101, 100 };
 
         public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::DotNetIsolator.Internal.GuestToHostCall value, global::MessagePack.MessagePackSerializerOptions options)
         {
-            var formatterResolver = options.Resolver;
-            writer.WriteMapHeader(2);
-            writer.WriteRaw(GetSpan_CallbackName());
+            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
+            writer.WriteArrayHeader(3);
             global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Serialize(ref writer, value.CallbackName, options);
-            writer.WriteRaw(GetSpan_ArgsSerialized());
-            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<byte[][]>(formatterResolver).Serialize(ref writer, value.ArgsSerialized, options);
+            global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<byte[][]>(formatterResolver).Serialize(ref writer, value.Args, options);
+            writer.Write(value.IsRawCall);
         }
 
         public global::DotNetIsolator.Internal.GuestToHostCall Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
@@ -126,30 +121,26 @@ namespace MessagePack.Formatters.DotNetIsolator.Internal
             }
 
             options.Security.DepthStep(ref reader);
-            var formatterResolver = options.Resolver;
-            var length = reader.ReadMapHeader();
+            global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
+            var length = reader.ReadArrayHeader();
             var ____result = new global::DotNetIsolator.Internal.GuestToHostCall();
 
             for (int i = 0; i < length; i++)
             {
-                var stringKey = global::MessagePack.Internal.CodeGenHelpers.ReadStringSpan(ref reader);
-                switch (stringKey.Length)
+                switch (i)
                 {
-                    default:
-                    FAIL:
-                      reader.Skip();
-                      continue;
-                    case 12:
-                        if (!global::System.MemoryExtensions.SequenceEqual(stringKey, GetSpan_CallbackName().Slice(1))) { goto FAIL; }
-
+                    case 0:
                         ____result.CallbackName = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<string>(formatterResolver).Deserialize(ref reader, options);
-                        continue;
-                    case 14:
-                        if (!global::System.MemoryExtensions.SequenceEqual(stringKey, GetSpan_ArgsSerialized().Slice(1))) { goto FAIL; }
-
-                        ____result.ArgsSerialized = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<byte[][]>(formatterResolver).Deserialize(ref reader, options);
-                        continue;
-
+                        break;
+                    case 1:
+                        ____result.Args = global::MessagePack.FormatterResolverExtensions.GetFormatterWithVerify<byte[][]>(formatterResolver).Deserialize(ref reader, options);
+                        break;
+                    case 2:
+                        ____result.IsRawCall = reader.ReadBoolean();
+                        break;
+                    default:
+                        reader.Skip();
+                        break;
                 }
             }
 

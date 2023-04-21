@@ -60,6 +60,21 @@ public class HostCallbackTest : IDisposable
     }
 
     [Fact]
+    public void CanPerformRawCallWithoutSerialization()
+    {
+        // This is useful in AOT cases
+        _runtime.RegisterCallback("concat", (byte[] a, byte[] b) =>
+        {
+            return a.Concat(b).ToArray();
+        });
+
+        var params1 = new byte[] { 0x1, 0x2, 0x3, 0x4, };
+        var params2 = new byte[] { 0x5, 0x6 };
+        var result = _runtime.Invoke(() => DotNetIsolatorHost.InvokeRaw("concat", params1, params2));
+        Assert.Equal(new byte[] { 0x1, 0x2, 0x3, 0x4, 0x5, 0x6 }, result);
+    }
+
+    [Fact]
     public void GetErrorIfCallbackNameIsUnknown()
     {
         var message = _runtime.Invoke(() =>

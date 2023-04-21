@@ -14,8 +14,21 @@ public static class DotNetIsolatorHost
                 GeneratedResolver.Instance,
                 ContractlessStandardResolverAllowPrivate.Instance));
 
-    public static unsafe void Invoke(string callbackName, params object[] args)
+    public static byte[] InvokeRaw(string callbackName, params byte[]?[] args)
+        => InvokeRaw<object>(callbackName, args);
+
+    public static void Invoke(string callbackName, params object[] args)
         => Invoke<object>(callbackName, args);
+
+    public static unsafe byte[] InvokeRaw<T>(string callbackName, params byte[]?[] args)
+    {
+        return PerformCall<byte[]>(new GuestToHostCall
+        {
+            CallbackName = callbackName,
+            Args = args,
+            IsRawCall = true,
+        });
+    }
 
     public static unsafe T Invoke<T>(string callbackName, params object[] args)
     {
@@ -24,7 +37,18 @@ public static class DotNetIsolatorHost
             : MessagePackSerializer.Serialize(a.GetType(), a, ContractlessStandardResolverAllowPrivate.Options))
             .ToArray();
 
-        var callInfo = new GuestToHostCall { CallbackName = callbackName, ArgsSerialized = argsSerialized };
+        // Note that this overload won't work if the host is AOT compiled because it will be unable to
+        // deserialize these arbitrary arg types. For that scenario, use the Memory<byte>[] overload instead.
+        return PerformCall<T>(new GuestToHostCall
+        {
+            CallbackName = callbackName,
+            Args = argsSerialized,
+            IsRawCall = false,
+        });
+    }
+
+    private static unsafe T PerformCall<T>(GuestToHostCall callInfo)
+    {
         var callInfoBytes = MessagePackSerializer.Serialize(callInfo, CallFromGuestResolverOptions);
 
         fixed (void* callInfoPtr = callInfoBytes)
@@ -33,7 +57,11 @@ public static class DotNetIsolatorHost
             var result = (int)resultPtr == 0 ? null : new Span<byte>(resultPtr, resultLength);
             if (success)
             {
-                return (int)resultPtr == 0 ? default! : MessagePackSerializer.Deserialize<T>(result.ToArray(), ContractlessStandardResolverAllowPrivate.Options);
+                return (int)resultPtr == 0
+                    ? default!
+                    : callInfo.IsRawCall
+                        ? (T)(object)result.ToArray()
+                        : MessagePackSerializer.Deserialize<T>(result.ToArray(), ContractlessStandardResolverAllowPrivate.Options);
             }
             else
             {

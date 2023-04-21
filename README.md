@@ -227,6 +227,25 @@ You can also find methods without having to instantiate any objects first:
 var getAgeMethod = isolatedRuntime.GetMethod(typeof(Person), "GetAge");
 ```
 
+## Calling the host from the guest
+
+The host may register named callbacks that can be invoked from guest code. For example:
+
+```cs
+using var runtime = new IsolatedRuntime(host);
+runtime.RegisterCallback("addTwoNumbers", (int a, int b) => a + b);
+runtime.RegisterCallback("getHostTime", () => DateTime.Now);
+```
+
+To call these from guest code, have the guest code's project reference the `DotNetIsolator.Guest` package, and then use `DotNetIsolatorHost.Invoke`, e.g.:
+
+```cs
+var sum = DotNetIsolatorHost.Invoke<int>("addTwoNumbers", 123, 456);
+var hostTime = DotNetIsolatorHost.Invoke<DateTime>("getHostTime");
+```
+
+Note that if you're calling via a lambda, then the guest code is in the same assembly as the host code, so in that case you need the host project to reference the `DotNetIsolator.Guest` package.
+
 ## Security notes
 
 If you want to rely on this isolation as a critical security boundary in your application, you should bear in mind that:

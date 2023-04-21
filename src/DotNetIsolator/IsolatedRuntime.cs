@@ -21,7 +21,7 @@ public class IsolatedRuntime : IDisposable
     private readonly Action<int> _releaseObject;
     private readonly ConcurrentDictionary<(string AssemblyName, string? Namespace, string TypeName, string MethodName, int NumArgs), IsolatedMethod> _methodLookupCache = new();
     private readonly ShadowStack _shadowStack;
-    private readonly Dictionary<string, MulticastDelegate> _registeredCallbacks = new();
+    private readonly Dictionary<string, Delegate> _registeredCallbacks = new();
     private bool _isDisposed;
 
     public IsolatedRuntime(IsolatedRuntimeHost host)
@@ -312,10 +312,8 @@ public class IsolatedRuntime : IDisposable
         }
     }
 
-    public void RegisterCallback<T0, T1, TResult>(string name, Func<T0, T1, TResult> callback)
-    {
-        _registeredCallbacks.Add(name, callback);
-    }
+    public void RegisterCallback(string name, Delegate callback)
+        => _registeredCallbacks.Add(name, callback);
 
     private IsolatedMethod LookupDelegateMethod(MulticastDelegate @delegate)
     {

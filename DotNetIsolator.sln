@@ -19,6 +19,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DotNetIsolator.Test", "test
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ConsoleSample.GuestCode", "sample\ConsoleSample.GuestCode\ConsoleSample.GuestCode.csproj", "{A17D7A77-9791-4BD5-B6FB-6E300189F8E7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotNetIsolator.Guest", "src\DotNetIsolator.Guest\DotNetIsolator.Guest.csproj", "{81208A63-AE8F-4CD0-8D63-54D54AFC25A8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -45,6 +47,10 @@ Global
 		{A17D7A77-9791-4BD5-B6FB-6E300189F8E7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A17D7A77-9791-4BD5-B6FB-6E300189F8E7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A17D7A77-9791-4BD5-B6FB-6E300189F8E7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{81208A63-AE8F-4CD0-8D63-54D54AFC25A8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{81208A63-AE8F-4CD0-8D63-54D54AFC25A8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{81208A63-AE8F-4CD0-8D63-54D54AFC25A8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{81208A63-AE8F-4CD0-8D63-54D54AFC25A8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -55,5 +61,6 @@ Global
 		{AF18FD66-3A86-4689-851E-9947DF27887B} = {037C7D98-EFBB-43B7-AC52-D2C36B20E5F0}
 		{8B7B978B-AA75-428F-8027-3E6BAF5716D1} = {66E86F53-C28F-4FE3-83B3-0553C0FEDDE1}
 		{A17D7A77-9791-4BD5-B6FB-6E300189F8E7} = {39286B3D-C643-49DE-A1A0-F51D0F3B945A}
+		{81208A63-AE8F-4CD0-8D63-54D54AFC25A8} = {037C7D98-EFBB-43B7-AC52-D2C36B20E5F0}
 	EndGlobalSection
 EndGlobal

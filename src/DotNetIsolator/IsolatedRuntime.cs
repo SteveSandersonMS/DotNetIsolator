@@ -21,12 +21,14 @@ public class IsolatedRuntime : IDisposable
     private readonly Action<int> _releaseObject;
     private readonly ConcurrentDictionary<(string AssemblyName, string? Namespace, string TypeName, string MethodName, int NumArgs), IsolatedMethod> _methodLookupCache = new();
     private readonly ShadowStack _shadowStack;
+    private readonly Dictionary<string, Delegate> _registeredCallbacks = new();
     private bool _isDisposed;
 
     public IsolatedRuntime(IsolatedRuntimeHost host)
     {
         var store = new Store(host.Engine);
         store.SetWasiConfiguration(host.WasiConfigurationOrDefault);
+        store.SetData(this);
 
         _store = store;
         _instance = host.Linker.Instantiate(store, host.Module);
@@ -51,6 +53,17 @@ public class IsolatedRuntime : IDisposable
         // _start is already called in preinitialization, so we can skip it now
         // var startExport = _instance.GetAction("_start") ?? throw new InvalidOperationException("Couldn't find export '_start'");
         // startExport.Invoke();
+    }
+
+    internal static IsolatedRuntime FromStore(Store store)
+    {
+        var runtime = (IsolatedRuntime?)store.GetData();
+        if (runtime is null)
+        {
+            throw new InvalidOperationException("Runtime was not set on the store");
+        }
+
+        return runtime;
     }
 
     internal ShadowStack ShadowStack => _shadowStack;
@@ -311,12 +324,66 @@ public class IsolatedRuntime : IDisposable
         }
     }
 
+    public void RegisterCallback(string name, Delegate callback)
+        => _registeredCallbacks.Add(name, callback);
+
     private IsolatedMethod LookupDelegateMethod(MulticastDelegate @delegate)
     {
         var method = @delegate.Method;
         var methodType = method.DeclaringType!;
         var wasmMethod = GetMethod(methodType.Assembly.GetName().Name!, methodType.Namespace, methodType.DeclaringType?.Name, methodType.Name, method.Name, -1);
         return wasmMethod;
+    }
+
+    internal int AcceptCallFromGuest(int invocationPtr, int invocationLength, int resultPtrPtr, int resultLengthPtr)
+    {
+        try
+        {
+            var invocationInfo = MessagePackSerializer.Deserialize<GuestToHostCall>(
+                _memory.GetSpan<byte>(invocationPtr, invocationLength).ToArray(), ContractlessStandardResolverAllowPrivate.Options);
+            if (!_registeredCallbacks.TryGetValue(invocationInfo.CallbackName, out var callback))
+            {
+                var errorString = Encoding.UTF8.GetBytes($"There is no registered callback with name '{invocationInfo.CallbackName}'");
+                var errorStringPtr = CopyValue<byte>(errorString, false);
+                _memory.WriteInt32(resultPtrPtr, errorStringPtr);
+                _memory.WriteInt32(resultLengthPtr, errorString.Length);
+                return 0;
+            }
+
+            var expectedParameterTypes = callback.Method.GetParameters();
+            var deserializedArgs = new object?[expectedParameterTypes.Length];
+            for (var i = 0; i < expectedParameterTypes.Length; i++)
+            {
+                deserializedArgs[i] = MessagePackSerializer.Deserialize(
+                    expectedParameterTypes[i].ParameterType,
+                    invocationInfo.ArgsSerialized[i],
+                    ContractlessStandardResolverAllowPrivate.Options);
+            }
+
+            var result = callback.DynamicInvoke(deserializedArgs);
+            var resultBytes = result is null ? null : MessagePackSerializer.Serialize(
+                callback.Method.ReturnType,
+                result,
+                ContractlessStandardResolverAllowPrivate.Options); ; ;
+
+            var resultPtr = resultBytes is null ? 0 : CopyValue<byte>(resultBytes, false);
+            _memory.WriteInt32(resultPtrPtr, resultPtr);
+            _memory.WriteInt32(resultLengthPtr, resultBytes is null ? 0 : resultBytes.Length);
+            return 1; // Success
+        }
+        catch (Exception ex)
+        {
+            // We could supply the raw exception info to the guest, but since we consider the guest untrusted,
+            // we don't want to expose arbitrary information about the host internals. Ideally this behavior would
+            // vary based on whether this is a dev or prod scenario, but that's not a concept that exists natively
+            // in .NET (whereas it does in ASP.NET Core).
+            Console.Error.WriteLine(ex.ToString());
+            var resultBytes = Encoding.UTF8.GetBytes("The call failed. See host console logs for details.");
+            var resultPtr = CopyValue<byte>(resultBytes, false);
+            _memory.WriteInt32(resultPtrPtr, resultPtr);
+            _memory.WriteInt32(resultLengthPtr, resultBytes.Length);
+            return 0; // Failure
+        }
     }
 
     [StructLayout(LayoutKind.Sequential)]

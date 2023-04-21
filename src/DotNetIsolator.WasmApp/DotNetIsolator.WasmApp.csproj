@@ -58,6 +58,7 @@
 	<ItemGroup>
 		<WasiNativeFileReference Include="native\*.c" />
 		<WasiAfterRuntimeLoaded Include="dotnetisolator_add_assembly_search_hook" />
+		<WasiAfterRuntimeLoaded Include="dotnetisolator_add_host_callback_internal_calls" />
 	</ItemGroup>
 
 </Project>

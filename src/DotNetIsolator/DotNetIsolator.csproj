@@ -5,11 +5,6 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<WasmAppProjectName>DotNetIsolator.WasmApp</WasmAppProjectName>
-		<VersionPrefix>0.1.0</VersionPrefix>
-		<VersionSuffix>dev</VersionSuffix>
-		<Authors>Steve Sanderson</Authors>
-  		<Company>Microsoft</Company>
-		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<BundledFilesDir>IsolatedRuntimeHost\</BundledFilesDir>
 		<BundledWasmAssembliesDir>$(BundledFilesDir)WasmAssemblies\</BundledWasmAssembliesDir>
 		<NoWarn>$(NoWarn);NU5100</NoWarn> <!-- We're bundling some .dlls as content, so don't warn about them not being in lib -->
@@ -22,6 +17,10 @@
 
 	<ItemGroup>
 		<Content Include="build\DotNetIsolator.props" PackagePath="build" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Compile Include="..\DotNetIsolator.Guest\GuestToHostCall.cs" />
 	</ItemGroup>
 
 	<!-- Reference the WasmApp project in such a way that we acquire its .wasm and WebAssembly BCL (.dll) files, but not its primary assembly -->

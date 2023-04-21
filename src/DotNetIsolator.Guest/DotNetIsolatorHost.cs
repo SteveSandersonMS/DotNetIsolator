@@ -1,11 +1,13 @@
 ﻿using DotNetIsolator.Guest;
+using MessagePack.Resolvers;
+using MessagePack;
 using System.Text;
 
 namespace DotNetIsolator;
 
-public static class HostInvoker
+public static class DotNetIsolatorHost
 {
-    public static unsafe void InvokeHost()
+    public static unsafe T Invoke<T>()
     {
         var msg = Encoding.UTF8.GetBytes("Hello from guest");
         fixed (void* msgPtr = msg)
@@ -14,8 +16,7 @@ public static class HostInvoker
             var result = new Span<byte>(resultPtr, resultLength);
             if (success)
             {
-                var resultString = Encoding.UTF8.GetString(result);
-                Console.WriteLine($"Guest got result: [{resultString}]");
+                return MessagePackSerializer.Deserialize<T>(result.ToArray(), ContractlessStandardResolverAllowPrivate.Options);
             }
             else
             {

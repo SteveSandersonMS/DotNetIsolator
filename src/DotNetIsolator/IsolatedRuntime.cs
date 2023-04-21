@@ -321,13 +321,33 @@ public class IsolatedRuntime : IDisposable
 
     internal int AcceptCallFromGuest(int invocationPtr, int invocationLength, int resultPtrPtr, int resultLengthPtr)
     {
-        var invocationString = _memory.ReadString(invocationPtr, invocationLength);
-        var result = $"You passed [{invocationString}]";
-        var resultBytes = Encoding.UTF8.GetBytes(result);
-        var resultPtr = CopyValue<byte>(resultBytes, false);
-        _memory.WriteInt32(resultPtrPtr, resultPtr);
-        _memory.WriteInt32(resultLengthPtr, resultBytes.Length);
-        return 1; // Success
+        try
+        {
+            var invocationString = _memory.ReadString(invocationPtr, invocationLength);
+            var result = $"You passed [{invocationString}]";
+
+            throw new InvalidTimeZoneException("Pp");
+            var resultBytes = MessagePackSerializer.Serialize(
+                result,
+                ContractlessStandardResolverAllowPrivate.Options);
+            var resultPtr = CopyValue<byte>(resultBytes, false);
+            _memory.WriteInt32(resultPtrPtr, resultPtr);
+            _memory.WriteInt32(resultLengthPtr, resultBytes.Length);
+            return 1; // Success
+        }
+        catch (Exception ex)
+        {
+            // We could supply the raw exception info to the guest, but since we consider the guest untrusted,
+            // we don't want to expose arbitrary information about the host internals. Ideally this behavior would
+            // vary based on whether this is a dev or prod scenario, but that's not a concept that exists natively
+            // in .NET (whereas it does in ASP.NET Core).
+            Console.Error.WriteLine(ex.ToString());
+            var resultBytes = Encoding.UTF8.GetBytes("The call failed. See host console logs for details.");
+            var resultPtr = CopyValue<byte>(resultBytes, false);
+            _memory.WriteInt32(resultPtrPtr, resultPtr);
+            _memory.WriteInt32(resultLengthPtr, resultBytes.Length);
+            return 0; // Failure
+        }
     }
 
     [StructLayout(LayoutKind.Sequential)]

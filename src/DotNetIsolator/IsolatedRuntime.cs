@@ -319,6 +319,17 @@ public class IsolatedRuntime : IDisposable
         return wasmMethod;
     }
 
+    internal int AcceptCallFromGuest(int invocationPtr, int invocationLength, int resultPtrPtr, int resultLengthPtr)
+    {
+        var invocationString = _memory.ReadString(invocationPtr, invocationLength);
+        var result = $"You passed [{invocationString}]";
+        var resultBytes = Encoding.UTF8.GetBytes(result);
+        var resultPtr = CopyValue<byte>(resultBytes, false);
+        _memory.WriteInt32(resultPtrPtr, resultPtr);
+        _memory.WriteInt32(resultLengthPtr, resultBytes.Length);
+        return 1; // Success
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     struct Invocation
     {

@@ -94,7 +94,7 @@ public class IsolatedRuntimeHost : IDisposable
     private void AddIsolatedImports()
     {
         Linker.DefineFunction("dotnetisolator", "request_assembly", (CallerFunc<int, int, int, int, int>)HandleRequestAssembly);
-        Linker.DefineFunction("dotnetisolator", "call_host", (CallerAction)HandleCallHost);
+        Linker.DefineFunction("dotnetisolator", "call_host", (CallerFunc<int, int, int, int, int>)HandleCallHost);
     }
 
     private int HandleRequestAssembly(Caller caller, int assemblyNamePtr, int assemblyNameLen, int suppliedBytesPtr, int suppliedBytesLen)
@@ -122,9 +122,10 @@ public class IsolatedRuntimeHost : IDisposable
         return 0;
     }
 
-    private void HandleCallHost(Caller caller)
+    private int HandleCallHost(Caller caller, int invocationPtr, int invocationLength, int resultPtrPtr, int resultLengthPtr)
     {
-        Console.WriteLine(".NET HandleCallHost");
+        var runtime = IsolatedRuntime.FromStore(caller.Store);
+        return runtime.AcceptCallFromGuest(invocationPtr, invocationLength, resultPtrPtr, resultLengthPtr);
     }
 
     private static int CopyValue(Func<int, int> malloc, Memory memory, ReadOnlySpan<byte> value)

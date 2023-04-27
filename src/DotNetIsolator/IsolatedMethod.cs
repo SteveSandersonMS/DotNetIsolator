@@ -133,6 +133,32 @@ public class IsolatedMethod
         }
     }
 
+    public TRes Invoke<TRes>(IsolatedObject? instance, params object[] args)
+    {
+        return Invoke<TRes>(instance, args.AsSpan());
+    }
+
+    public TRes Invoke<TRes>(IsolatedObject? instance, Span<object> args)
+    {
+        Span<int> argAddresses = stackalloc int[args.Length];
+        for (int i = 0; i < args.Length; i++)
+        {
+            argAddresses[i] = _runtimeInstance.CopyValueLengthPrefixed(
+                MessagePackSerializer.Typeless.Serialize(args[i]));
+        }
+        try
+        {
+            return _runtimeInstance.InvokeDotNetMethod<TRes>(_monoMethodPtr, instance, argAddresses);
+        }
+        finally
+        {
+            for (int i = 0; i < args.Length; i++)
+            {
+                _runtimeInstance.Free(argAddresses[i]);
+            }
+        }
+    }
+
     public void InvokeVoid(IsolatedObject? instance)
         => Invoke<object>(instance);
 

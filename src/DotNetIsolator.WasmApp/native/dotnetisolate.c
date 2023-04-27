@@ -7,35 +7,23 @@ typedef struct RunnerInvocation {
 	MonoGCHandle target;
 	MonoMethod* method_ptr;
 	MonoString* result_exception;
-	void* result_serialized;
-	int result_serialized_length;
-	MonoGCHandle result_serialized_handle;
+	int result_type;
+	void* result_ptr;
+	int result_length;
+	MonoGCHandle result_handle;
 	void** args_length_prefixed_buffers;
 	int args_length_prefixed_buffers_length;
 } RunnerInvocation;
 
+#define RESULT_TYPE_SERIALIZE 0
+#define RESULT_TYPE_HANDLE 1
+
 __attribute__((export_name("dotnetisolator_instantiate_class")))
-MonoGCHandle dotnetisolator_instantiate_class(char* assembly_name, char* namespace, char* class_name, char** error_msg) {
-	MonoGCHandle result;
+MonoGCHandle dotnetisolator_instantiate_class(MonoClass* class) {
+	MonoObject* instance = mono_object_new(NULL, class);
+	MonoGCHandle result = (MonoGCHandle)mono_gchandle_new(instance, /* pinned */ 0);
+	mono_runtime_object_init(instance);
 
-	MonoAssembly* assembly = mono_wasm_assembly_load(assembly_name);
-	if (!assembly) {
-		asprintf(error_msg, "Could not load assembly '%s'", assembly_name);
-	} else {
-		MonoClass* class = mono_wasm_assembly_find_class(assembly, namespace, class_name);
-		if (!class) {
-			asprintf(error_msg, "Could not find type '%s.%s' in assembly '%s'", namespace, class_name, assembly_name);
-		} else {
-			MonoObject* instance = mono_object_new(NULL, class);
-			result = (MonoGCHandle)mono_gchandle_new(instance, /* pinned */ 0);
-			mono_runtime_object_init(instance);
-			*error_msg = NULL;
-		}
-	}
-
-	free(assembly_name);
-	free(namespace);
-	free(class_name);
 	return result;
 }
 
@@ -46,31 +34,50 @@ void dotnetisolator_release_object(MonoGCHandle gcHandle) {
 	}
 }
 
-__attribute__((export_name("dotnetisolator_lookup_method")))
-MonoMethod* dotnetisolator_lookup_method(char* assembly_name, char* namespace, char* type_name, char* method_name, int num_params, char** error_msg) {
-	//printf("Trying to find %s %s %s %s %i\n", assembly_name, namespace, type_name, method_name, num_params);
-	MonoMethod* result = NULL;
+__attribute__((export_name("dotnetisolator_get_class")))
+MonoClass* dotnetisolator_get_class(MonoGCHandle gcHandle) {
+	if (gcHandle) {
+		MonoObject* object = mono_gchandle_get_target((uint32_t)(gcHandle));
+		if (object) {
+			return mono_object_get_class(object);
+		}
+	}
+	return NULL;
+}
+
+__attribute__((export_name("dotnetisolator_lookup_class")))
+MonoClass* dotnetisolator_lookup_class(char* assembly_name, char* namespace, char* type_name, char** error_msg) {
+	//printf("Trying to find %s %s %s\n", assembly_name, namespace, type_name);
+	MonoClass* result = NULL;
 	*error_msg = NULL;
 	char* namespace_or_fallback = namespace ? namespace : "(no namespace)";
 
 	MonoAssembly* assembly = mono_wasm_assembly_load(assembly_name);
 	if (!assembly) {
-		asprintf(error_msg, "Could not find method [%s]%s.%s::%s because the assembly %s could not be found.", assembly_name, namespace_or_fallback, type_name, method_name, assembly_name);
+		asprintf(error_msg, "Could not find class [%s]%s.%s because the assembly %s could not be found.", assembly_name, namespace_or_fallback, type_name, assembly_name);
 	} else {
-		MonoClass* class = mono_wasm_assembly_find_class(assembly, namespace, type_name);
-		if (!class) {
-			asprintf(error_msg, "Could not find method [%s]%s.%s::%s because the type %s could not be found in the assembly.", assembly_name, namespace_or_fallback, type_name, method_name, type_name);
-		} else {
-			result = mono_wasm_assembly_find_method(class, method_name, num_params);
-			if (!result) {
-				asprintf(error_msg, "Could not find method [%s]%s.%s::%s because the method %s could not be found in the type, or it did not have the correct number of parameters.", assembly_name, namespace_or_fallback, type_name, method_name, method_name);
-			}
+		result = mono_wasm_assembly_find_class(assembly, namespace, type_name);
+		if (!result) {
+			asprintf(error_msg, "Could not find class [%s]%s.%s because the type %s could not be found in the assembly.", assembly_name, namespace_or_fallback, type_name, type_name);
 		}
 	}
 
 	free(assembly_name);
 	free(namespace);
 	free(type_name);
+	return result;
+}
+
+__attribute__((export_name("dotnetisolator_lookup_method")))
+MonoMethod* dotnetisolator_lookup_method(MonoClass* class, char* method_name, int num_params, char** error_msg) {
+	//printf("Trying to find %s %i\n", method_name, num_params);
+	*error_msg = NULL;
+
+	MonoMethod* result = mono_wasm_assembly_find_method(class, method_name, num_params);
+	if (!result) {
+		asprintf(error_msg, "Could not find method %s in the type with the correct number of parameters.", method_name);
+	}
+
 	free(method_name);
 	return result;
 }
@@ -110,7 +117,13 @@ void* deserialize_param(void* length_prefixed_buffer, MonoGCHandle* value_handle
 
 void serialize_return_value(MonoObject* value, RunnerInvocation* invocation, MonoObject** exception_buf) {
 	if (!value) {
-		invocation->result_serialized = NULL;
+		invocation->result_ptr = NULL;
+		return;
+	}
+
+	if (invocation->result_type == RESULT_TYPE_HANDLE) {
+		invocation->result_ptr = mono_object_get_class(value);
+		invocation->result_handle = (MonoGCHandle)mono_gchandle_new(value, /* pinned */ 0);
 		return;
 	}
 
@@ -120,9 +133,9 @@ void serialize_return_value(MonoObject* value, RunnerInvocation* invocation, Mon
 
 	void* method_params[] = { value };
 	MonoObject* byte_array = mono_wasm_invoke_method(serialize_return_value_dotnet_method, NULL, method_params, exception_buf);
-	invocation->result_serialized = mono_array_addr_with_size((MonoArray*)byte_array, 1, 0);
-	invocation->result_serialized_length = mono_array_length((MonoArray*)byte_array);
-	invocation->result_serialized_handle = (MonoGCHandle)mono_gchandle_new(byte_array, /* pinned */ 1);
+	invocation->result_ptr = mono_array_addr_with_size((MonoArray*)byte_array, 1, 0);
+	invocation->result_length = mono_array_length((MonoArray*)byte_array);
+	invocation->result_handle = (MonoGCHandle)mono_gchandle_new(byte_array, /* pinned */ 1);
 }
 
 __attribute__((export_name("dotnetisolator_invoke_method")))

@@ -22,12 +22,15 @@ public class IsolatedRuntime : IDisposable
     private readonly Memory _memory;
     private readonly Func<int, int> _malloc;
     private readonly Action<int> _free;
-    private readonly Func<int, int, int, int, int> _instantiateDotNetClass;
-    private readonly Func<int, int, int, int, int, int, int> _lookupDotNetMethod;
+    private readonly Func<int, int, int, int, int> _lookupDotNetClass;
+    private readonly Func<int, int> _getDotNetClass;
+    private readonly Func<int, int> _instantiateDotNetClass;
+    private readonly Func<int, int, int, int, int> _lookupDotNetMethod;
     private readonly Func<int, int, int> _deserializeAsDotNetObject;
     private readonly Action<int> _invokeDotNetMethod;
     private readonly Action<int> _releaseObject;
-    private readonly ConcurrentDictionary<(string AssemblyName, string? Namespace, string TypeName, string MethodName, int NumArgs), IsolatedMethod> _methodLookupCache = new();
+    private readonly ConcurrentDictionary<(string AssemblyName, string? Namespace, string TypeName), int> _classLookupCache = new();
+    private readonly ConcurrentDictionary<(int MonoClass, string MethodName, int NumArgs), IsolatedMethod> _methodLookupCache = new();
     private readonly ShadowStack _shadowStack;
     private readonly Dictionary<string, Delegate> _registeredCallbacks = new();
     private bool _isDisposed;
@@ -45,9 +48,13 @@ public class IsolatedRuntime : IDisposable
             ?? throw new InvalidOperationException("Missing required export 'malloc'");
         _free = _instance.GetAction<int>("free")
             ?? throw new InvalidOperationException("Missing required export 'free'");
-        _instantiateDotNetClass = _instance.GetFunction<int, int, int, int, int>("dotnetisolator_instantiate_class")
+        _lookupDotNetClass = _instance.GetFunction<int, int, int, int, int>("dotnetisolator_lookup_class")
+            ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_lookup_class'");
+        _getDotNetClass = _instance.GetFunction<int, int>("dotnetisolator_get_class")
+            ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_get_class'");
+        _instantiateDotNetClass = _instance.GetFunction<int, int>("dotnetisolator_instantiate_class")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_instantiate_class'");
-        _lookupDotNetMethod = _instance.GetFunction<int, int, int, int, int, int, int>("dotnetisolator_lookup_method")
+        _lookupDotNetMethod = _instance.GetFunction<int, int, int, int, int>("dotnetisolator_lookup_method")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_lookup_method'");
         _deserializeAsDotNetObject = _instance.GetFunction<int, int, int>("dotnetisolator_deserialize_object")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_deserialize_object'");
@@ -79,28 +86,43 @@ public class IsolatedRuntime : IDisposable
     public IsolatedObject CreateObject(string assemblyName, string? @namespace, string className)
         => CreateObject(assemblyName, @namespace, declaringTypeName: null, className);
 
+    private int GetClass(string assemblyName, string? @namespace, string? declaringTypeName, string className)
+    {
+        return _classLookupCache.GetOrAdd((assemblyName, @namespace, className), info => {
+            var errorMessageParam = _shadowStack.Push<int>();
+            try
+            {
+                var monoClassName = declaringTypeName is null ? className : $"{declaringTypeName}/{className}";
+                // All these CopyValue strings are freed inside the C code
+                var monoClass = _lookupDotNetClass(
+                    CopyValue(info.AssemblyName),
+                    CopyValue(info.Namespace),
+                    CopyValue(monoClassName),
+                    errorMessageParam.Address);
+
+                if(errorMessageParam.Value != 0)
+                {
+                    var errorString = _memory.ReadNullTerminatedString(errorMessageParam.Value);
+                    _free(errorMessageParam.Value);
+                    throw new IsolatedException(errorString);
+                }
+
+                return monoClass;
+            }
+            finally
+            {
+                errorMessageParam.Pop();
+            }
+        });
+    }
+
     public IsolatedObject CreateObject(string assemblyName, string? @namespace, string? declaringTypeName, string className)
     {
-        var errorMessageParam = _shadowStack.Push<int>();
-        try
-        {
-            // All these CopyValue strings are freed inside the C code
-            var monoClassName = declaringTypeName is null ? className : $"{declaringTypeName}/{className}";
-            var gcHandle = _instantiateDotNetClass(CopyValue(assemblyName), CopyValue(@namespace), CopyValue(monoClassName), errorMessageParam.Address);
+        var monoClass = GetClass(assemblyName, @namespace, declaringTypeName, className);
 
-            if (errorMessageParam.Value != 0)
-            {
-                var errorString = _memory.ReadNullTerminatedString(errorMessageParam.Value);
-                _free(errorMessageParam.Value);
-                throw new IsolatedException(errorString);
-            }
+        var gcHandle = _instantiateDotNetClass(monoClass);
 
-            return new IsolatedObject(this, gcHandle, assemblyName, @namespace, declaringTypeName, className);
-        }
-        finally
-        {
-            errorMessageParam.Pop();
-        }
+        return new IsolatedObject(this, gcHandle, monoClass);
     }
 
     public IsolatedObject CreateObject<T>()
@@ -121,7 +143,7 @@ public class IsolatedRuntime : IDisposable
                 throw new IsolatedException(errorMessage);
             }
 
-            return new IsolatedObject(this, gcHandle, typeof(T).Assembly.GetName().Name!, typeof(T).Namespace, typeof(T).DeclaringType?.Name, typeof(T).Name);
+            return new IsolatedObject(this, gcHandle, _getDotNetClass(gcHandle));
         }
         finally
         {
@@ -182,20 +204,21 @@ public class IsolatedRuntime : IDisposable
 
     public IsolatedMethod GetMethod(string assemblyName, string? @namespace, string? declaringTypeName, string typeName, string methodName, int numArgs = -1)
     {
-        // Consider a multilevel cache keyed first by type so that successive "GetMethod" calls on the same type
-        // don't have to hash so many strings. Also handle lookup failures in a better way.
-        return _methodLookupCache.GetOrAdd((assemblyName, @namespace, typeName, methodName, numArgs), info =>
+        int monoClass = GetClass(assemblyName, @namespace, declaringTypeName, typeName);
+        return GetMethod(monoClass, methodName, numArgs);
+    }
+    
+    internal IsolatedMethod GetMethod(int monoClass, string methodName, int numArgs = -1)
+    {
+        // Handle lookup failures in a better way.
+        return _methodLookupCache.GetOrAdd((monoClass, methodName, numArgs), info =>
         {
             // All these CopyValue strings are freed inside the C code
-            var monoClassName = declaringTypeName is null ? typeName : $"{declaringTypeName}/{typeName}";
-            
             var errorMessageParam = _shadowStack.Push<int>();
             try
             {
                 var methodPtr = _lookupDotNetMethod(
-                    CopyValue(info.AssemblyName),
-                    CopyValue(info.Namespace),
-                    CopyValue(monoClassName),
+                    monoClass,
                     CopyValue(info.MethodName),
                     info.NumArgs,
                     errorMessageParam.Address);
@@ -224,12 +247,15 @@ public class IsolatedRuntime : IDisposable
         var wasmPtr = _malloc(len); // Freed below
         try
         {
+            bool asHandle = typeof(TRes).Equals(typeof(IsolatedObject));
+
             var invocationStruct = _memory.GetSpan(wasmPtr, len);
             ref var invocation = ref MemoryMarshal.Cast<byte, Invocation>(invocationStruct)[0];
             invocation = new()
             {
                 TargetGCHandle = instance is IsolatedObject o ? o.GuestGCHandle : 0,
                 MethodPtr = monoMethodPtr,
+                ResultType = asHandle ? Invocation.ResultTypeHandle : Invocation.ResultTypeSerialize,
                 ArgsLengthPrefixedBuffers = CopyValue(argAddresses, addLengthPrefix: false), // Freed in C code
                 ArgsLengthPrefixedBuffersLength = argAddresses.Length,
             };
@@ -241,23 +267,31 @@ public class IsolatedRuntime : IDisposable
                 throw new IsolatedException(exceptionString);
             }
 
-            if (invocation.ResultSerialized == 0)
+            if (invocation.ResultPtr == 0)
             {
                 return default!;
             }
             else
             {
-                var resultBytes = _memory
-                    .GetSpan(invocation.ResultSerialized, invocation.ResultSerializedLength)
-                    .ToArray();
+                if (asHandle)
+                {
+                    var resulTypePtr = invocation.ResultPtr;
+                    return (TRes)(object)new IsolatedObject(this, invocation.ResultGCHandle, resulTypePtr);
+                }
+                else
+                {
+                    var resultBytes = _memory
+                        .GetSpan(invocation.ResultPtr, invocation.ResultLength)
+                        .ToArray();
 
-                // Note that we don't deserialize using MessagePackSerializer.Typeless because we don't want the guest code
-                // to be able to make the host instantiate arbitrary types. The host will only instantiate the types statically
-                // defined by the type graph of TRes.
-                var result = MessagePackSerializer.Deserialize<TRes>(resultBytes, ContractlessStandardResolverAllowPrivate.Options)!;
+                    // Note that we don't deserialize using MessagePackSerializer.Typeless because we don't want the guest code
+                    // to be able to make the host instantiate arbitrary types. The host will only instantiate the types statically
+                    // defined by the type graph of TRes.
+                    var result = MessagePackSerializer.Deserialize<TRes>(resultBytes, ContractlessStandardResolverAllowPrivate.Options)!;
 
-                ReleaseGCHandle(invocation.ResultSerializedGCHandle);
-                return result;
+                    ReleaseGCHandle(invocation.ResultGCHandle);
+                    return result;
+                }
             }
         }
         finally
@@ -397,12 +431,16 @@ public class IsolatedRuntime : IDisposable
     [StructLayout(LayoutKind.Sequential)]
     struct Invocation
     {
+        public const int ResultTypeSerialize = 0;
+        public const int ResultTypeHandle = 1;
+
         public int TargetGCHandle;
         public int MethodPtr;
         public int ResultException;
-        public int ResultSerialized;
-        public int ResultSerializedLength;
-        public int ResultSerializedGCHandle;
+        public int ResultType;
+        public int ResultPtr;
+        public int ResultLength;
+        public int ResultGCHandle;
         public int ArgsLengthPrefixedBuffers;
         public int ArgsLengthPrefixedBuffersLength;
     }

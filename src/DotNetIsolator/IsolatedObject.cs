@@ -3,19 +3,13 @@
 public class IsolatedObject : IDisposable
 {
     private readonly IsolatedRuntime _runtimeInstance;
-    private readonly string _assemblyName;
-    private readonly string? _namespace;
-    private readonly string? _declaringTypeName;
-    private readonly string _typeName;
+    private readonly int _monoClass;
 
-    internal IsolatedObject(IsolatedRuntime runtimeInstance, int gcHandle, string assemblyName, string? @namespace, string? declaringTypeName, string typeName)
+    internal IsolatedObject(IsolatedRuntime runtimeInstance, int gcHandle, int monoClass)
     {
         _runtimeInstance = runtimeInstance;
         GuestGCHandle = gcHandle;
-        _assemblyName = assemblyName;
-        _namespace = @namespace;
-        _declaringTypeName = declaringTypeName;
-        _typeName = typeName;
+        _monoClass = monoClass;
     }
 
     internal int GuestGCHandle { get; private set; }
@@ -27,7 +21,7 @@ public class IsolatedObject : IDisposable
             throw new InvalidOperationException("Cannot look up instance method because the object has already been released.");
         }
 
-        return _runtimeInstance.GetMethod(_assemblyName, _namespace, _declaringTypeName, _typeName, methodName);
+        return _runtimeInstance.GetMethod(_monoClass, methodName);
     }
 
     public TRes Invoke<TRes>(string methodName)
@@ -47,6 +41,12 @@ public class IsolatedObject : IDisposable
 
     public TRes Invoke<T0, T1, T2, T3, T4, TRes>(string methodName, T0 param0, T1 param1, T2 param2, T3 param3, T4 param4)
         => FindMethod(methodName, 5).Invoke<T0, T1, T2, T3, T4, TRes>(this, param0, param1, param2, param3, param4);
+
+    public TRes Invoke<TRes>(string methodName, params object[] args)
+        => FindMethod(methodName, args.Length).Invoke<TRes>(this, args);
+
+    public TRes Invoke<TRes>(string methodName, Span<object> args)
+        => FindMethod(methodName, args.Length).Invoke<TRes>(this, args);
 
     public void InvokeVoid(string methodName)
         => FindMethod(methodName, 0).InvokeVoid(this);

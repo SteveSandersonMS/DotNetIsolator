@@ -306,30 +306,16 @@ public class IsolatedRuntime : IDisposable
     {
         // TODO: Find a way of not serializing value.Target if it doesn't contain any fields we care about serializing
         // This makes invoking static lambdas vastly faster. It's not clear to me why the target is nonnull in these cases anyway.
-        var targetInGuest = value.Target is null ? null : CopyObject(value.Target);
-        try
-        {
-            LookupDelegateMethod(value).InvokeVoid(targetInGuest);
-        }
-        finally
-        {
-            targetInGuest?.ReleaseGCHandle(); // TODO: Make this into a 'Dispose' call on IsolatedObject?
-        }
+        using var targetInGuest = value.Target is null ? null : CopyObject(value.Target);
+        LookupDelegateMethod(value).InvokeVoid(targetInGuest);
     }
 
     public TRes Invoke<TRes>(Func<TRes> value)
     {
         // TODO: Find a way of not serializing value.Target if it doesn't contain any fields we care about serializing
         // This makes invoking static lambdas vastly faster. It's not clear to me why the target is nonnull in these cases anyway.
-        var targetInGuest = value.Target is null ? null : CopyObject(value.Target);
-        try
-        {
-            return LookupDelegateMethod(value).Invoke<TRes>(targetInGuest);
-        }
-        finally
-        {
-            targetInGuest?.ReleaseGCHandle(); // TODO: Make this into a 'Dispose' call on IsolatedObject?
-        }
+        using var targetInGuest = value.Target is null ? null : CopyObject(value.Target);
+        return LookupDelegateMethod(value).Invoke<TRes>(targetInGuest);
     }
 
     public void RegisterCallback(string name, Delegate callback)

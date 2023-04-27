@@ -1,6 +1,6 @@
 ﻿namespace DotNetIsolator;
 
-public class IsolatedObject
+public class IsolatedObject : IDisposable
 {
     private readonly IsolatedRuntime _runtimeInstance;
     private readonly string _assemblyName;
@@ -66,7 +66,7 @@ public class IsolatedObject
     public void InvokeVoid<T0, T1, T2, T3, T4>(string methodName, T0 param0, T1 param1, T2 param2, T3 param3, T4 param4)
         => FindMethod(methodName, 5).InvokeVoid(this, param0, param1, param2, param3, param4);
 
-    public void ReleaseGCHandle()
+    protected virtual void Dispose(bool disposing)
     {
         if (GuestGCHandle != 0)
         {
@@ -75,8 +75,14 @@ public class IsolatedObject
         }
     }
 
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
     ~IsolatedObject()
     {
-        ReleaseGCHandle();
+        Dispose(false);
     }
 }

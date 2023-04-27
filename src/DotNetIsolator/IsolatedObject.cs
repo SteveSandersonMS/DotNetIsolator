@@ -66,6 +66,11 @@ public class IsolatedObject : IDisposable
     public void InvokeVoid<T0, T1, T2, T3, T4>(string methodName, T0 param0, T1 param1, T2 param2, T3 param3, T4 param4)
         => FindMethod(methodName, 5).InvokeVoid(this, param0, param1, param2, param3, param4);
 
+    public T Deserialize<T>()
+    {
+        return _runtimeInstance.InvokeDotNetMethod<T>(0, this, default);
+    }
+
     protected virtual void Dispose(bool disposing)
     {
         if (GuestGCHandle != 0)

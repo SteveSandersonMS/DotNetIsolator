@@ -159,7 +159,12 @@ void dotnetisolator_invoke_method(RunnerInvocation* invocation) {
 		//printf("GCHandle: %p, Method: %p, Arg0: %p\n", invocation->target, invocation->method_ptr, invocation->arg0);
 		MonoObject* target = invocation->target ? mono_gchandle_get_target((uint32_t)(invocation->target)) : 0;
 
-		MonoObject* result = mono_wasm_invoke_method(invocation->method_ptr, target, method_params, &exc);
+		MonoObject* result;
+		if (invocation->method_ptr) {
+			result = mono_wasm_invoke_method(invocation->method_ptr, target, method_params, &exc);
+		} else {
+			result = target;
+		}
 
 		for (int i = 0; i < num_args; i++) {
 			if (arg_handles[i]) {

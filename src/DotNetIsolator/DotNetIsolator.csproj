@@ -1,7 +1,8 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net7.0</TargetFramework>
+		<TargetFramework>netstandard2.1</TargetFramework>
+		<LangVersion>10.0</LangVersion>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<WasmAppProjectName>DotNetIsolator.WasmApp</WasmAppProjectName>
@@ -28,8 +29,9 @@
 	<ItemGroup>		
 		<ProjectReference Include="..\DotNetIsolator.WasmApp\DotNetIsolator.WasmApp.csproj">
 		  <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+		  <SkipGetTargetFrameworkProperties>true</SkipGetTargetFrameworkProperties>
 		</ProjectReference>
-		<Content Include="..\$(WasmAppProjectName)\bin\$(Configuration)\$(TargetFramework)\$(WasmAppProjectName).wasm">
+		<Content Include="..\$(WasmAppProjectName)\bin\$(Configuration)\net7.0\$(WasmAppProjectName).wasm">
 			<Visible>false</Visible>
 			<Link>$(BundledFilesDir)%(Filename)%(Extension)</Link>
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

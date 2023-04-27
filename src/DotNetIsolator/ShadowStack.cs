@@ -35,9 +35,9 @@ internal class ShadowStack : IDisposable
         _stackPtr += len;
 
         var valueBytes = _memory.GetSpan(ptr, len);
-        ref var value = ref MemoryMarshal.AsRef<T>(valueBytes);
+        var value = MemoryMarshal.Cast<byte, T>(valueBytes);
 
-        return new ShadowStackEntry<T>(this, ref value, ptr);
+        return new ShadowStackEntry<T>(this, value, ptr);
     }
 
     public void Pop<T>(int expectedAddress) where T : unmanaged

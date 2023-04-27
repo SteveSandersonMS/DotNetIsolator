@@ -2,14 +2,15 @@
 
 internal readonly ref struct ShadowStackEntry<T> where T: unmanaged
 {
-    public readonly ref T Value;
+    private readonly Span<T> _value;
+    public ref T Value => ref _value[0];
     public readonly int Address;
     private readonly ShadowStack _owner;
 
-    public ShadowStackEntry(ShadowStack owner, ref T value, int address)
+    public ShadowStackEntry(ShadowStack owner, Span<T> value, int address)
     {
         _owner = owner;
-        Value = ref value;
+        _value = value;
         Address = address;
     }
 

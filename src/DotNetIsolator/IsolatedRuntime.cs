@@ -2,6 +2,7 @@
 using MessagePack;
 using MessagePack.Resolvers;
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using Wasmtime;
@@ -219,12 +220,12 @@ public class IsolatedRuntime : IDisposable
     internal TRes InvokeDotNetMethod<TRes>(int monoMethodPtr, IsolatedObject? instance, ReadOnlySpan<int> argAddresses)
     {
         // Prepare an Invocation struct within guest memory
-        var len = Marshal.SizeOf<Invocation>();
+        var len = Unsafe.SizeOf<Invocation>();
         var wasmPtr = _malloc(len); // Freed below
         try
         {
             var invocationStruct = _memory.GetSpan(wasmPtr, len);
-            ref var invocation = ref MemoryMarshal.AsRef<Invocation>(invocationStruct);
+            ref var invocation = ref MemoryMarshal.Cast<byte, Invocation>(invocationStruct)[0];
             invocation = new()
             {
                 TargetGCHandle = instance is IsolatedObject o ? o.GuestGCHandle : 0,

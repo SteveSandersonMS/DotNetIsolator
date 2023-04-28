@@ -161,6 +161,12 @@ void dotnetisolator_invoke_method(RunnerInvocation* invocation) {
 
 		MonoObject* result;
 		if (invocation->method_ptr) {
+			if (target) {
+				MonoMethod* method = mono_object_get_virtual_method(target, invocation->method_ptr);
+				if (method) {
+					invocation->method_ptr = method;
+				}
+			}
 			result = mono_wasm_invoke_method(invocation->method_ptr, target, method_params, &exc);
 		} else {
 			result = target;

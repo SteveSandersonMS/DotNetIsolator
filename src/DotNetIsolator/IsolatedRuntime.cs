@@ -36,6 +36,9 @@ public class IsolatedRuntime : IDisposable
     private readonly Dictionary<string, Delegate> _registeredCallbacks = new();
     private bool _isDisposed;
 
+    public IsolatedClass ObjectClass { get; }
+    public IsolatedMethod ToStringMethod { get; }
+
     public IsolatedRuntime(IsolatedRuntimeHost host)
     {
         var store = new Store(host.Engine);
@@ -69,6 +72,12 @@ public class IsolatedRuntime : IDisposable
         // _start is already called in preinitialization, so we can skip it now
         // var startExport = _instance.GetAction("_start") ?? throw new InvalidOperationException("Couldn't find export '_start'");
         // startExport.Invoke();
+
+        ObjectClass = this.GetClass<object>()
+            ?? throw new InvalidOperationException("System.Object could not be found");
+
+        ToStringMethod = ObjectClass.GetMethod(nameof(Object.ToString), 0)
+            ?? throw new InvalidOperationException("System.Object.ToString could not be found");
     }
 
     internal static IsolatedRuntime FromStore(Store store)

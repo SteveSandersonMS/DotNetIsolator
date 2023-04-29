@@ -18,6 +18,11 @@ public class IsolatedObject : IDisposable
 
     internal int GuestGCHandle { get; private set; }
 
+    public override string ToString()
+    {
+        return _runtimeInstance.ToStringMethod.Invoke<string>(this);
+    }
+
     private IsolatedMethod FindMethod(string methodName, int numArgs = -1)
     {
         if (GuestGCHandle == 0)

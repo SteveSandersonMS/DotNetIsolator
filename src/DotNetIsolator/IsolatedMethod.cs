@@ -2,7 +2,7 @@
 
 namespace DotNetIsolator;
 
-public class IsolatedMethod
+public class IsolatedMethod : IEquatable<IsolatedMethod>
 {
     private readonly IsolatedRuntime _runtimeInstance;
     private readonly int _monoMethodPtr;
@@ -11,6 +11,23 @@ public class IsolatedMethod
     {
         _runtimeInstance = runtimeInstance;
         _monoMethodPtr = monoMethodPtr;
+    }
+
+    public bool Equals(IsolatedMethod other)
+    {
+        return
+            _runtimeInstance == other._runtimeInstance &&
+            _monoMethodPtr == other._monoMethodPtr;
+    }
+
+    public override bool Equals(object obj)
+    {
+        return obj is IsolatedMethod method && Equals(method);
+    }
+
+    public override int GetHashCode()
+    {
+        return HashCode.Combine(_runtimeInstance, _monoMethodPtr);
     }
 
     public TRes Invoke<TRes>(IsolatedObject? instance)

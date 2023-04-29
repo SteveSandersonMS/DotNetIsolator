@@ -1,6 +1,6 @@
 ﻿namespace DotNetIsolator;
 
-public class IsolatedClass
+public class IsolatedClass : IEquatable<IsolatedClass>
 {
     private readonly IsolatedRuntime _runtimeInstance;
     private readonly int _monoClassPtr;
@@ -9,6 +9,23 @@ public class IsolatedClass
     {
         _runtimeInstance = runtimeInstance;
         _monoClassPtr = monoClassPtr;
+    }
+
+    public bool Equals(IsolatedClass other)
+    {
+        return
+            _runtimeInstance == other._runtimeInstance &&
+            _monoClassPtr == other._monoClassPtr;
+    }
+
+    public override bool Equals(object obj)
+    {
+        return obj is IsolatedClass cls && Equals(cls);
+    }
+
+    public override int GetHashCode()
+    {
+        return HashCode.Combine(_runtimeInstance, _monoClassPtr);
     }
 
     public IsolatedObject CreateInstance()

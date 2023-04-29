@@ -25,10 +25,9 @@ public class IsolatedRuntime : IDisposable
     private readonly Func<int, int, int> _realloc;
     private readonly Action<int> _free;
     private readonly Func<int, int, int, int> _lookupDotNetClass;
-    private readonly Func<int, int> _getDotNetClass;
     private readonly Func<int, int> _instantiateDotNetClass;
     private readonly Func<int, int, int, int> _lookupDotNetMethod;
-    private readonly Func<int, int, int> _deserializeAsDotNetObject;
+    private readonly Func<int, int, int, int> _deserializeAsDotNetObject;
     private readonly Action<int> _invokeDotNetMethod;
     private readonly Action<int> _releaseObject;
     private readonly ConcurrentDictionary<(string AssemblyName, string? Namespace, string TypeName), IsolatedClass> _classLookupCache = new();
@@ -54,13 +53,11 @@ public class IsolatedRuntime : IDisposable
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_realloc'");
         _lookupDotNetClass = _instance.GetFunction<int, int, int, int>("dotnetisolator_lookup_class")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_lookup_class'");
-        _getDotNetClass = _instance.GetFunction<int, int>("dotnetisolator_get_object_class")
-            ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_get_object_class'");
         _instantiateDotNetClass = _instance.GetFunction<int, int>("dotnetisolator_instantiate_class")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_instantiate_class'");
         _lookupDotNetMethod = _instance.GetFunction<int, int, int, int>("dotnetisolator_lookup_method")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_lookup_method'");
-        _deserializeAsDotNetObject = _instance.GetFunction<int, int, int>("dotnetisolator_deserialize_object")
+        _deserializeAsDotNetObject = _instance.GetFunction<int, int, int, int>("dotnetisolator_deserialize_object")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_deserialize_object'");
         _invokeDotNetMethod = _instance.GetAction<int>("dotnetisolator_invoke_method")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_invoke_method'");
@@ -129,16 +126,17 @@ public class IsolatedRuntime : IDisposable
         var serializedBytesAddress = allocator.Release();
         try
         {
+            using var monoClassPtrBuf = _shadowStack.Push<int>();
             using var errorMessageBuf = _shadowStack.Push<int>();
-            var gcHandle = _deserializeAsDotNetObject(serializedBytesAddress, errorMessageBuf.Address);
+            var gcHandle = _deserializeAsDotNetObject(serializedBytesAddress, monoClassPtrBuf.Address, errorMessageBuf.Address);
 
             if (errorMessageBuf.Value != 0)
             {
                 var errorMessage = ReadDotNetString(errorMessageBuf.Value);
-                throw new IsolatedException(errorMessage, new IsolatedObject(this, gcHandle, _getDotNetClass(gcHandle)));
+                throw new IsolatedException(errorMessage, new IsolatedObject(this, gcHandle, monoClassPtrBuf.Value));
             }
 
-            return new IsolatedObject(this, gcHandle, _getDotNetClass(gcHandle));
+            return new IsolatedObject(this, gcHandle, monoClassPtrBuf.Value);
         }
         finally
         {

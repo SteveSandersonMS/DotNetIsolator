@@ -39,17 +39,6 @@ void dotnetisolator_release_object(MonoGCHandle gcHandle) {
 	}
 }
 
-__attribute__((export_name("dotnetisolator_get_object_class")))
-MonoClass* dotnetisolator_get_object_class(MonoGCHandle gcHandle) {
-	if (gcHandle) {
-		MonoObject* object = mono_gchandle_get_target((uint32_t)(gcHandle));
-		if (object) {
-			return mono_object_get_class(object);
-		}
-	}
-	return NULL;
-}
-
 __attribute__((export_name("dotnetisolator_lookup_class")))
 MonoClass* dotnetisolator_lookup_class(char* assembly_name, char* namespace, char* type_name) {
 	//printf("Trying to find %s %s %s\n", assembly_name, namespace, type_name);
@@ -204,7 +193,7 @@ void dotnetisolator_invoke_method(RunnerInvocation* invocation) {
 }
 
 __attribute__((export_name("dotnetisolator_deserialize_object")))
-MonoGCHandle dotnetisolator_deserialize_object(void* length_prefixed_buffer, MonoString** err_msg) {
+MonoGCHandle dotnetisolator_deserialize_object(void* length_prefixed_buffer, MonoClass** class, MonoString** err_msg) {
 	//printf("addr: %p; len: %i; first: %i\n", length_prefixed_buffer, ((int*)length_prefixed_buffer)[0], ((unsigned char*)length_prefixed_buffer)[4]);
 	MonoGCHandle result;
 	MonoObject* exc = NULL;
@@ -212,9 +201,11 @@ MonoGCHandle dotnetisolator_deserialize_object(void* length_prefixed_buffer, Mon
 
 	if (exc) {
 		// Return the exception handle
+		*class = mono_object_get_class(exc);
 		return (MonoGCHandle)mono_gchandle_new(exc, /* pinned */ 0);
 	} else {
 		*err_msg = NULL;
+		*class = mono_object_get_class(mono_gchandle_get_target((uint32_t)result));
 		return result;
 	}
 }

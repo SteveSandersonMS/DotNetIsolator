@@ -34,8 +34,8 @@ void dotnetisolator_release_object(MonoGCHandle gcHandle) {
 	}
 }
 
-__attribute__((export_name("dotnetisolator_get_class")))
-MonoClass* dotnetisolator_get_class(MonoGCHandle gcHandle) {
+__attribute__((export_name("dotnetisolator_get_object_class")))
+MonoClass* dotnetisolator_get_object_class(MonoGCHandle gcHandle) {
 	if (gcHandle) {
 		MonoObject* object = mono_gchandle_get_target((uint32_t)(gcHandle));
 		if (object) {
@@ -46,20 +46,14 @@ MonoClass* dotnetisolator_get_class(MonoGCHandle gcHandle) {
 }
 
 __attribute__((export_name("dotnetisolator_lookup_class")))
-MonoClass* dotnetisolator_lookup_class(char* assembly_name, char* namespace, char* type_name, char** error_msg) {
+MonoClass* dotnetisolator_lookup_class(char* assembly_name, char* namespace, char* type_name) {
 	//printf("Trying to find %s %s %s\n", assembly_name, namespace, type_name);
+
 	MonoClass* result = NULL;
-	*error_msg = NULL;
-	char* namespace_or_fallback = namespace ? namespace : "(no namespace)";
 
 	MonoAssembly* assembly = mono_wasm_assembly_load(assembly_name);
-	if (!assembly) {
-		asprintf(error_msg, "Could not find class [%s]%s.%s because the assembly %s could not be found.", assembly_name, namespace_or_fallback, type_name, assembly_name);
-	} else {
+	if (assembly) {
 		result = mono_wasm_assembly_find_class(assembly, namespace, type_name);
-		if (!result) {
-			asprintf(error_msg, "Could not find class [%s]%s.%s because the type %s could not be found in the assembly.", assembly_name, namespace_or_fallback, type_name, type_name);
-		}
 	}
 
 	free(assembly_name);
@@ -69,14 +63,10 @@ MonoClass* dotnetisolator_lookup_class(char* assembly_name, char* namespace, cha
 }
 
 __attribute__((export_name("dotnetisolator_lookup_method")))
-MonoMethod* dotnetisolator_lookup_method(MonoClass* class, char* method_name, int num_params, char** error_msg) {
+MonoMethod* dotnetisolator_lookup_method(MonoClass* class, char* method_name, int num_params) {
 	//printf("Trying to find %s %i\n", method_name, num_params);
-	*error_msg = NULL;
 
 	MonoMethod* result = mono_wasm_assembly_find_method(class, method_name, num_params);
-	if (!result) {
-		asprintf(error_msg, "Could not find method %s in the type with the correct number of parameters.", method_name);
-	}
 
 	free(method_name);
 	return result;

@@ -22,10 +22,10 @@ public class IsolatedRuntime : IDisposable
     private readonly Memory _memory;
     private readonly Func<int, int> _malloc;
     private readonly Action<int> _free;
-    private readonly Func<int, int, int, int, int> _lookupDotNetClass;
+    private readonly Func<int, int, int, int> _lookupDotNetClass;
     private readonly Func<int, int> _getDotNetClass;
     private readonly Func<int, int> _instantiateDotNetClass;
-    private readonly Func<int, int, int, int, int> _lookupDotNetMethod;
+    private readonly Func<int, int, int, int> _lookupDotNetMethod;
     private readonly Func<int, int, int> _deserializeAsDotNetObject;
     private readonly Action<int> _invokeDotNetMethod;
     private readonly Action<int> _releaseObject;
@@ -48,13 +48,13 @@ public class IsolatedRuntime : IDisposable
             ?? throw new InvalidOperationException("Missing required export 'malloc'");
         _free = _instance.GetAction<int>("free")
             ?? throw new InvalidOperationException("Missing required export 'free'");
-        _lookupDotNetClass = _instance.GetFunction<int, int, int, int, int>("dotnetisolator_lookup_class")
+        _lookupDotNetClass = _instance.GetFunction<int, int, int, int>("dotnetisolator_lookup_class")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_lookup_class'");
-        _getDotNetClass = _instance.GetFunction<int, int>("dotnetisolator_get_class")
-            ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_get_class'");
+        _getDotNetClass = _instance.GetFunction<int, int>("dotnetisolator_get_object_class")
+            ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_get_object_class'");
         _instantiateDotNetClass = _instance.GetFunction<int, int>("dotnetisolator_instantiate_class")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_instantiate_class'");
-        _lookupDotNetMethod = _instance.GetFunction<int, int, int, int, int>("dotnetisolator_lookup_method")
+        _lookupDotNetMethod = _instance.GetFunction<int, int, int, int>("dotnetisolator_lookup_method")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_lookup_method'");
         _deserializeAsDotNetObject = _instance.GetFunction<int, int, int>("dotnetisolator_deserialize_object")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_deserialize_object'");
@@ -81,36 +81,30 @@ public class IsolatedRuntime : IDisposable
         return runtime;
     }
 
-    internal ShadowStack ShadowStack => _shadowStack;
-
-    public IsolatedClass GetClass(string assemblyName, string? @namespace, string? declaringTypeName, string className)
+    public IsolatedClass? GetClass(string assemblyName, string? @namespace, string? declaringTypeName, string className)
     {
-        return _classLookupCache.GetOrAdd((assemblyName, @namespace, className), info => {
-            var errorMessageParam = _shadowStack.Push<int>();
-            try
-            {
+        try
+        {
+            return _classLookupCache.GetOrAdd((assemblyName, @namespace, className), info => {
                 var monoClassName = declaringTypeName is null ? className : $"{declaringTypeName}/{className}";
                 // All these CopyValue strings are freed inside the C code
                 var monoClassPtr = _lookupDotNetClass(
                     CopyValue(info.AssemblyName),
                     CopyValue(info.Namespace),
-                    CopyValue(monoClassName),
-                    errorMessageParam.Address);
+                    CopyValue(monoClassName));
 
-                if(errorMessageParam.Value != 0)
+                if(monoClassPtr == 0)
                 {
-                    var errorString = _memory.ReadNullTerminatedString(errorMessageParam.Value);
-                    _free(errorMessageParam.Value);
-                    throw new IsolatedException(errorString);
+                    throw new IsolatedException(null);
                 }
 
                 return new IsolatedClass(this, monoClassPtr);
-            }
-            finally
-            {
-                errorMessageParam.Pop();
-            }
-        });
+            });
+        }
+        catch (IsolatedException)
+        {
+            return null;
+        }
     }
 
     internal IsolatedObject CreateObject(int monoClassPtr)
@@ -187,35 +181,30 @@ public class IsolatedRuntime : IDisposable
     internal int CopyValueLengthPrefixed(ReadOnlySpan<byte> value)
         => CopyValue(value, addLengthPrefix: true);
 
-    internal IsolatedMethod GetMethod(int monoClassPtr, string methodName, int numArgs = -1)
+    internal IsolatedMethod? GetMethod(int monoClassPtr, string methodName, int numArgs = -1)
     {
-        // Handle lookup failures in a better way.
-        return _methodLookupCache.GetOrAdd((monoClassPtr, methodName, numArgs), info =>
+        try
         {
-            // All these CopyValue strings are freed inside the C code
-            var errorMessageParam = _shadowStack.Push<int>();
-            try
+            return _methodLookupCache.GetOrAdd((monoClassPtr, methodName, numArgs), info =>
             {
+                // All these CopyValue strings are freed inside the C code
                 var methodPtr = _lookupDotNetMethod(
                     monoClassPtr,
                     CopyValue(info.MethodName),
-                    info.NumArgs,
-                    errorMessageParam.Address);
+                    info.NumArgs);
 
-                if (errorMessageParam.Value != 0)
+                if(methodPtr != 0)
                 {
-                    var errorString = _memory.ReadNullTerminatedString(errorMessageParam.Value);
-                    _free(errorMessageParam.Value);
-                    throw new IsolatedException(errorString);
+                    throw new IsolatedException(null);
                 }
 
                 return new IsolatedMethod(this, methodPtr);
-            }
-            finally
-            {
-                errorMessageParam.Pop();
-            }
-        });
+            });
+        }
+        catch (IsolatedException)
+        {
+            return null;
+        }
     }
 
     // Internal because you only need to call it via IsolatedMethod

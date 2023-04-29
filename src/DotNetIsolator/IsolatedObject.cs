@@ -5,6 +5,10 @@ public class IsolatedObject : IDisposable
     private readonly IsolatedRuntime _runtimeInstance;
     private readonly int _monoClassPtr;
 
+    IsolatedClass? _classCached;
+
+    public IsolatedClass Class => _classCached ??= new(_runtimeInstance, _monoClassPtr);
+
     internal IsolatedObject(IsolatedRuntime runtimeInstance, int gcHandle, int monoClassPtr)
     {
         _runtimeInstance = runtimeInstance;
@@ -14,14 +18,15 @@ public class IsolatedObject : IDisposable
 
     internal int GuestGCHandle { get; private set; }
 
-    public IsolatedMethod FindMethod(string methodName, int numArgs = -1)
+    private IsolatedMethod FindMethod(string methodName, int numArgs = -1)
     {
         if (GuestGCHandle == 0)
         {
             throw new InvalidOperationException("Cannot look up instance method because the object has already been released.");
         }
 
-        return _runtimeInstance.GetMethod(_monoClassPtr, methodName, numArgs);
+        return _runtimeInstance.GetMethod(_monoClassPtr, methodName, numArgs)
+            ?? throw new ArgumentException($"Cannot find method {methodName} on the class.");
     }
 
     public TRes Invoke<TRes>(string methodName)

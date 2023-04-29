@@ -16,7 +16,7 @@ public class IsolatedClass
         return _runtimeInstance.CreateObject(_monoClassPtr);
     }
 
-    public IsolatedMethod GetMethod(string methodName, int numArgs = -1)
+    public IsolatedMethod? GetMethod(string methodName, int numArgs = -1)
     {
         return _runtimeInstance.GetMethod(_monoClassPtr, methodName, numArgs);
     }

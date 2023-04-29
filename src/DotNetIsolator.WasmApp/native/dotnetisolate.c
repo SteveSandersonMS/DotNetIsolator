@@ -1,5 +1,7 @@
 #include <assert.h>
 #include <stdio.h>
+#include <mono/metadata/appdomain.h>
+#include <mono/metadata/metadata.h>
 #include <mono/metadata/class.h>
 #include <mono-wasi/driver.h>
 
@@ -69,6 +71,10 @@ MonoMethod* dotnetisolator_lookup_method(MonoClass* class, char* method_name, in
 MonoMethod* deserialize_param_dotnet_method;
 MonoMethod* serialize_return_value_dotnet_method;
 
+// Where is this?
+MonoGenericInst *
+mono_metadata_get_generic_inst(int type_argc, MonoType **type_argv);
+
 void* deserialize_param(void* length_prefixed_buffer, MonoType* param_type, MonoGCHandle* value_handle, MonoObject** exception_buf, MonoString** exception_msg) {
 	if (!length_prefixed_buffer) {
 		return NULL;
@@ -78,12 +84,23 @@ void* deserialize_param(void* length_prefixed_buffer, MonoType* param_type, Mono
 
 	if (*(int*)length_prefixed_buffer) {
 		if (deserialize_param_dotnet_method == 0) {
-			deserialize_param_dotnet_method = lookup_dotnet_method("DotNetIsolator.WasmApp", "DotNetIsolator.WasmApp", "Serialization", "Deserialize", -1);
+			deserialize_param_dotnet_method = lookup_dotnet_method("DotNetIsolator.WasmApp", "DotNetIsolator.WasmApp", "Serialization", "Deserialize", 2);
 		}
+
+		if (!param_type) {
+			param_type = mono_class_get_type(mono_get_object_class());
+		}
+		
+		MonoGenericInst* inst = mono_metadata_get_generic_inst(1, &param_type);
+		MonoGenericInst* context[2] = {
+			NULL,
+			inst
+		};
+		MonoMethod* inflated_method = mono_class_inflate_generic_method(deserialize_param_dotnet_method, (MonoGenericContext*)context);
 
 		void* method_params[2] = { length_prefixed_buffer + 4, length_prefixed_buffer };
 		result = mono_wasm_invoke_method(
-			deserialize_param_dotnet_method,
+			inflated_method,
 			NULL,
 			method_params,
 			exception_buf);

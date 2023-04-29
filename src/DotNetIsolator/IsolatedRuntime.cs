@@ -34,6 +34,7 @@ public class IsolatedRuntime : IDisposable
     private readonly Func<int, int, int> _reflectMethod;
     private readonly Action<int> _invokeDotNetMethod;
     private readonly Action<int> _releaseObject;
+    private readonly Func<int, int> _getObjectHash;
 
     private readonly ConcurrentDictionary<(string AssemblyName, string? Namespace, string TypeName), IsolatedClass> _classLookupCache = new();
     private readonly ConcurrentDictionary<(int MonoClass, string MethodName, int NumArgs), IsolatedMethod> _methodLookupCache = new();
@@ -45,6 +46,8 @@ public class IsolatedRuntime : IDisposable
 
     public IsolatedClass ObjectClass { get; }
     public IsolatedMethod ToStringMethod { get; }
+    public IsolatedMethod EqualsMethod { get; }
+    public IsolatedMethod ReferenceEqualsMethod { get; }
 
     public IsolatedRuntime(IsolatedRuntimeHost host)
     {
@@ -81,6 +84,8 @@ public class IsolatedRuntime : IDisposable
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_invoke_method'");
         _releaseObject = _instance.GetAction<int>("dotnetisolator_release_object")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_release_object'");
+        _getObjectHash = _instance.GetFunction<int, int>("dotnetisolator_get_object_hash")
+            ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_get_object_hash'");
 
         _shadowStack = new ShadowStack(_memory, _malloc, _free);
 
@@ -88,11 +93,19 @@ public class IsolatedRuntime : IDisposable
         // var startExport = _instance.GetAction("_start") ?? throw new InvalidOperationException("Couldn't find export '_start'");
         // startExport.Invoke();
 
-        ObjectClass = this.GetClass<object>()
-            ?? throw new InvalidOperationException("System.Object could not be found");
+        var getObjectClass = _instance.GetFunction<int>("dotnetisolator_get_object_class")
+            ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_get_object_class'");
+
+        ObjectClass = new IsolatedClass(this, getObjectClass());
 
         ToStringMethod = ObjectClass.GetMethod(nameof(Object.ToString), 0)
             ?? throw new InvalidOperationException("System.Object.ToString could not be found");
+
+        EqualsMethod = ObjectClass.GetMethod(nameof(Object.Equals), 2)
+            ?? throw new InvalidOperationException("System.Object.Equals could not be found");
+
+        ReferenceEqualsMethod = ObjectClass.GetMethod(nameof(Object.ReferenceEquals), 2)
+            ?? throw new InvalidOperationException("System.Object.ReferenceEquals could not be found");
     }
 
     internal static IsolatedRuntime FromStore(Store store)
@@ -141,6 +154,11 @@ public class IsolatedRuntime : IDisposable
     {
         var gcHandle = _instantiateDotNetClass(monoClassPtr);
         return new IsolatedObject(this, gcHandle, monoClassPtr);
+    }
+
+    internal int GetHashCode(int gcHandle)
+    {
+        return _getObjectHash(gcHandle);
     }
 
     public IsolatedObject CopyObject<T>(T value)

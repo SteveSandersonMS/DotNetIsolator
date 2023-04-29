@@ -296,3 +296,14 @@ MonoGCHandle dotnetisolator_reflect_method(MonoMethod* method, MonoClass** resul
 	*result_class = mono_object_get_class(result);
 	return (MonoGCHandle)mono_gchandle_new(result, /* pinned */ 0);
 }
+
+__attribute__((export_name("dotnetisolator_get_object_class")))
+MonoClass* dotnetisolator_get_object_class() {
+	return mono_get_object_class();
+}
+
+__attribute__((export_name("dotnetisolator_get_object_hash")))
+int dotnetisolator_get_object_hash(MonoGCHandle gcHandle) {
+	MonoObject* obj = mono_gchandle_get_target((uint32_t)gcHandle);
+	return mono_object_hash(obj);
+}

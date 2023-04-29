@@ -1,6 +1,6 @@
 ﻿namespace DotNetIsolator;
 
-public class IsolatedObject : IDisposable, IIsolatedGCHandle
+public class IsolatedObject : IDisposable, IIsolatedGCHandle, IEquatable<IsolatedObject>
 {
     private readonly IsolatedRuntime _runtimeInstance;
     private readonly int _monoClassPtr;
@@ -38,6 +38,30 @@ public class IsolatedObject : IDisposable, IIsolatedGCHandle
         return _runtimeInstance.GetMethod(_monoClassPtr, methodName, numArgs)
             ?? throw new ArgumentException($"Cannot find method {methodName} on the class.");
     }
+
+    public bool ValueEquals(IsolatedObject other)
+    {
+        return _runtimeInstance == other._runtimeInstance
+            && _runtimeInstance.EqualsMethod.Invoke<IsolatedObject, IsolatedObject, bool>(null, this, other);
+    }
+
+    public bool Equals(IsolatedObject other)
+    {
+        return _runtimeInstance == other._runtimeInstance
+            && _runtimeInstance.ReferenceEqualsMethod.Invoke<IsolatedObject, IsolatedObject, bool>(null, this, other);
+    }
+
+    public override bool Equals(object obj)
+    {
+        return obj is IsolatedObject other && Equals(other);
+    }
+
+    public override int GetHashCode()
+    {
+        return HashCode.Combine(_runtimeInstance, _runtimeInstance.GetHashCode(GuestGCHandle));
+    }
+
+    #region Invoke overloads
 
     public TRes Invoke<TRes>(string methodName)
         => FindMethod(methodName, 0).Invoke<TRes>(this);
@@ -80,6 +104,8 @@ public class IsolatedObject : IDisposable, IIsolatedGCHandle
 
     public void InvokeVoid<T0, T1, T2, T3, T4>(string methodName, T0 param0, T1 param1, T2 param2, T3 param3, T4 param4)
         => FindMethod(methodName, 5).InvokeVoid(this, param0, param1, param2, param3, param4);
+
+    #endregion
 
     public T Deserialize<T>()
     {

@@ -192,8 +192,17 @@ public class IsolatedRuntime : IDisposable
     internal IsolatedAllocator GetLengthPrefixedAllocator()
     {
         var allocator = GetAllocator();
-        allocator.Advance(4);
+        InitLengthPrefixedAllocator(allocator);
         return allocator;
+    }
+
+    internal void InitLengthPrefixedAllocator(IsolatedAllocator allocator)
+    {
+        if (allocator.WrittenBytes != 0)
+        {
+            throw new ArgumentException("The allocator must be positioned at 0.", nameof(allocator));
+        }
+        allocator.Advance(4);
     }
 
     internal int ReleaseLengthPrefixedAllocator(IsolatedAllocator allocator)

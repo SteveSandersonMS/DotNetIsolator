@@ -102,7 +102,7 @@ public class IsolatedRuntime : IDisposable
                     CopyValue(info.Namespace),
                     CopyValue(monoClassName));
 
-                if(monoClassPtr == 0)
+                if (monoClassPtr == 0)
                 {
                     throw new IsolatedException(null);
                 }
@@ -198,11 +198,11 @@ public class IsolatedRuntime : IDisposable
             {
                 // All these CopyValue strings are freed inside the C code
                 var methodPtr = _lookupDotNetMethod(
-                    monoClassPtr,
+                    info.MonoClass,
                     CopyValue(info.MethodName),
                     info.NumArgs);
 
-                if(methodPtr != 0)
+                if (methodPtr == 0)
                 {
                     throw new IsolatedException(null);
                 }

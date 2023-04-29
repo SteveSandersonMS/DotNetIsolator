@@ -124,11 +124,12 @@ public class IsolatedRuntime : IDisposable
 
     public IsolatedObject CopyObject<T>(T value)
     {
-        var serializedBytes = MessagePackSerializer.Typeless.Serialize(value);
-        var serializedBytesAddress = CopyValueLengthPrefixed(serializedBytes);
-        var errorMessageBuf = _shadowStack.Push<int>();
+        using var allocator = GetAllocator();
+        MessagePackSerializer.Typeless.Serialize(allocator, value);
+        var serializedBytesAddress = allocator.Release();
         try
         {
+            using var errorMessageBuf = _shadowStack.Push<int>();
             var gcHandle = _deserializeAsDotNetObject(serializedBytesAddress, errorMessageBuf.Address);
 
             if (errorMessageBuf.Value != 0)
@@ -141,7 +142,6 @@ public class IsolatedRuntime : IDisposable
         }
         finally
         {
-            errorMessageBuf.Pop();
             Free(serializedBytesAddress);
         }
     }

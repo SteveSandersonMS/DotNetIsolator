@@ -14,7 +14,7 @@ internal readonly ref struct ShadowStackEntry<T> where T: unmanaged
         Address = address;
     }
 
-    public void Pop()
+    public void Dispose()
     {
         _owner.Pop<T>(Address);
     }

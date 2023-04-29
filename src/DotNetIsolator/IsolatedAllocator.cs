@@ -12,31 +12,45 @@ public sealed class IsolatedAllocator : MemoryManager<byte>, IBufferWriter<byte>
     int _offset;
     int _allocatedSize;
 
+    public int WrittenBytes => _offset;
+
     public IsolatedAllocator(IsolatedRuntime runtimeInstance)
     {
         _runtimeInstance = runtimeInstance;
-
-        _memoryPtr = runtimeInstance.Alloc(minSize);
-        _allocatedSize = minSize;
     }
 
     public int Release()
     {
         int ptr = _memoryPtr;
 
-        _memoryPtr = _runtimeInstance.Alloc(minSize);
+        _memoryPtr = 0;
         _offset = 0;
-        _allocatedSize = minSize;
+        _allocatedSize = 0;
 
         return ptr;
     }
 
     private void Reserve(int size)
     {
-        if (size > _allocatedSize)
+        if (_allocatedSize == 0)
         {
-            _memoryPtr = _runtimeInstance.Realloc(_memoryPtr, _allocatedSize * 2);
-            _allocatedSize *= 2;
+            int newSize = minSize;
+            while (newSize < size)
+            {
+                newSize *= 2;
+            }
+            _memoryPtr = _runtimeInstance.Alloc(newSize);
+            _allocatedSize = newSize;
+        }
+        else if (size > _allocatedSize)
+        {
+            int newSize = _allocatedSize;
+            while (newSize < size)
+            {
+                newSize *= 2;
+            }
+            _memoryPtr = _runtimeInstance.Realloc(_memoryPtr, newSize);
+            _allocatedSize = newSize;
         }
     }
 

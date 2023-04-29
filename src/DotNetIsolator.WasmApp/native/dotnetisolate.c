@@ -69,7 +69,7 @@ MonoMethod* dotnetisolator_lookup_method(MonoClass* class, char* method_name, in
 MonoMethod* deserialize_param_dotnet_method;
 MonoMethod* serialize_return_value_dotnet_method;
 
-void* deserialize_param(void* length_prefixed_buffer, MonoGCHandle* value_handle, MonoObject** exception_buf, MonoString** exception_msg) {
+void* deserialize_param(void* length_prefixed_buffer, MonoType* param_type, MonoGCHandle* value_handle, MonoObject** exception_buf, MonoString** exception_msg) {
 	if (!length_prefixed_buffer) {
 		return NULL;
 	}
@@ -81,7 +81,7 @@ void* deserialize_param(void* length_prefixed_buffer, MonoGCHandle* value_handle
 			deserialize_param_dotnet_method = lookup_dotnet_method("DotNetIsolator.WasmApp", "DotNetIsolator.WasmApp", "Serialization", "Deserialize", -1);
 		}
 
-		void* method_params[] = { length_prefixed_buffer + 4, length_prefixed_buffer };
+		void* method_params[2] = { length_prefixed_buffer + 4, length_prefixed_buffer };
 		result = mono_wasm_invoke_method(
 			deserialize_param_dotnet_method,
 			NULL,
@@ -104,12 +104,17 @@ void* deserialize_param(void* length_prefixed_buffer, MonoGCHandle* value_handle
 		result = mono_gchandle_get_target(handle);
 	}
 
+	int must_unbox = 0;
+	
+	if (param_type) {
+		must_unbox = mono_class_is_valuetype(mono_class_from_mono_type(param_type));
+	}
+
 	// I don't actually know for sure if it's necessary to pin these MonoObject* for the duration between
 	// deserializing and calling the method. But given that we're unboxing value types and getting back a
 	// raw pointer to the value-type memory, we do need it not to move in this period.
-	*value_handle = (MonoGCHandle)mono_gchandle_new(result, /* pinned */ 1);
+	*value_handle = (MonoGCHandle)mono_gchandle_new(result, /* pinned */ must_unbox);
 
-	int must_unbox = mono_class_is_valuetype(mono_object_get_class(result));
 	return must_unbox ? mono_object_unbox(result) : result;
 }
 
@@ -147,12 +152,24 @@ void dotnetisolator_invoke_method(RunnerInvocation* invocation) {
 	MonoObject* exc = NULL;
 	MonoString* exc_msg = NULL;
 
+	MonoMethodSignature* signature = NULL;
+	if (invocation->method_ptr) {
+		signature = mono_method_signature(invocation->method_ptr);
+	}
+	void* param_iter = NULL;
+
 	int num_args = invocation->args_length_prefixed_buffers_length;
 	void* method_params[num_args];
 	MonoGCHandle arg_handles[num_args];
 	for (int i = 0; i < num_args; i++) {
 		void* arg_length_prefixed_buffer = invocation->args_length_prefixed_buffers[i];
-		method_params[i] = deserialize_param(arg_length_prefixed_buffer, &arg_handles[i], &exc, &exc_msg);
+		MonoType* param_type = NULL;
+		if (signature) {
+			param_type = mono_signature_get_params(signature, &param_iter);
+		}
+
+		method_params[i] = deserialize_param(arg_length_prefixed_buffer, param_type, &arg_handles[i], &exc, &exc_msg);
+		
 		if (exc) {
 			break;
 		}
@@ -205,7 +222,7 @@ MonoGCHandle dotnetisolator_deserialize_object(void* length_prefixed_buffer, Mon
 	//printf("addr: %p; len: %i; first: %i\n", length_prefixed_buffer, ((int*)length_prefixed_buffer)[0], ((unsigned char*)length_prefixed_buffer)[4]);
 	MonoGCHandle result;
 	MonoObject* exc = NULL;
-	deserialize_param(length_prefixed_buffer, &result, &exc, err_msg);
+	deserialize_param(length_prefixed_buffer, NULL, &result, &exc, err_msg);
 
 	if (exc) {
 		// Return the exception handle

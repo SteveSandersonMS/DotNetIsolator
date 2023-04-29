@@ -121,9 +121,9 @@ public class IsolatedRuntime : IDisposable
 
     public IsolatedObject CopyObject<T>(T value)
     {
-        using var allocator = GetAllocator();
+        using var allocator = GetLengthPrefixedAllocator();
         MessagePackSerializer.Typeless.Serialize(allocator, value);
-        var serializedBytesAddress = allocator.Release();
+        var serializedBytesAddress = ReleaseLengthPrefixedAllocator(allocator);
         try
         {
             using var monoClassPtrBuf = _shadowStack.Push<int>();
@@ -187,6 +187,21 @@ public class IsolatedRuntime : IDisposable
 
     internal int CopyValueLengthPrefixed(ReadOnlySpan<byte> value)
         => CopyValue(value, addLengthPrefix: true);
+
+    internal IsolatedAllocator GetLengthPrefixedAllocator()
+    {
+        var allocator = GetAllocator();
+        allocator.Advance(4);
+        return allocator;
+    }
+
+    internal int ReleaseLengthPrefixedAllocator(IsolatedAllocator allocator)
+    {
+        var length = allocator.WrittenBytes;
+        var address = allocator.Release();
+        _memory.WriteInt32(address, length);
+        return address;
+    }
 
     internal IsolatedMethod? GetMethod(int monoClassPtr, string methodName, int numArgs = -1)
     {

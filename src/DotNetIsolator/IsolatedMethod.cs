@@ -35,9 +35,8 @@ public class IsolatedMethod : IEquatable<IsolatedMethod>
     {
         // We might also want to special-case some basic known parameter types and skip MessagePack
         // for them, instead using ShadowStack and the raw bytes
-        _runtimeInstance.InitLengthPrefixedAllocator(allocator);
         MessagePackSerializer.Typeless.Serialize(allocator, value);
-        return _runtimeInstance.ReleaseLengthPrefixedAllocator(allocator);
+        return allocator.Release();
     }
 
     private TRes Invoke<TRes>(IsolatedObject? instance, Span<int> argAddresses)

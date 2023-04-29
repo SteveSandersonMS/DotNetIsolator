@@ -9,10 +9,8 @@ public sealed class IsolatedAllocator : MemoryManager<byte>, IBufferWriter<byte>
     const int minSize = 4;
 
     int _memoryPtr;
-    int _offset;
+    int _offset = sizeof(int);
     int _allocatedSize;
-
-    public int WrittenBytes => _offset;
 
     public IsolatedAllocator(IsolatedRuntime runtimeInstance)
     {
@@ -23,8 +21,16 @@ public sealed class IsolatedAllocator : MemoryManager<byte>, IBufferWriter<byte>
     {
         int ptr = _memoryPtr;
 
+        if (ptr == 0)
+        {
+            // allocate empty buffer to hold the length
+            ptr = _runtimeInstance.Alloc(sizeof(int));
+        }
+
+        _runtimeInstance.WriteInt32(ptr, _offset - sizeof(int));
+
         _memoryPtr = 0;
-        _offset = 0;
+        _offset = sizeof(int);
         _allocatedSize = 0;
 
         return ptr;

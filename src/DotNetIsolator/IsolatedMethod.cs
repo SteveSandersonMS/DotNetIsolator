@@ -33,6 +33,14 @@ public class IsolatedMethod : IEquatable<IsolatedMethod>
 
     private int Serialize<T>(T value, IsolatedAllocator allocator)
     {
+        if (value is IIsolatedGCHandle handle && handle.GetGCHandle(_runtimeInstance) is int gcHandle)
+        {
+            // Special size 0 case just with handle
+            var memory = _runtimeInstance.Alloc(2 * sizeof(int));
+            _runtimeInstance.WriteInt32(memory, 0);
+            _runtimeInstance.WriteInt32(memory + sizeof(int), gcHandle);
+            return memory;
+        }
         // We might also want to special-case some basic known parameter types and skip MessagePack
         // for them, instead using ShadowStack and the raw bytes
         MessagePackSerializer.Typeless.Serialize(allocator, value);

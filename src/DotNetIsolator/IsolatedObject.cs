@@ -1,6 +1,6 @@
 ﻿namespace DotNetIsolator;
 
-public class IsolatedObject : IDisposable
+public class IsolatedObject : IDisposable, IIsolatedGCHandle
 {
     private readonly IsolatedRuntime _runtimeInstance;
     private readonly int _monoClassPtr;
@@ -21,6 +21,11 @@ public class IsolatedObject : IDisposable
     public override string ToString()
     {
         return _runtimeInstance.ToStringMethod.Invoke<string>(this);
+    }
+
+    public int? GetGCHandle(IsolatedRuntime runtime)
+    {
+        return runtime == _runtimeInstance ? GuestGCHandle : null;
     }
 
     private IsolatedMethod FindMethod(string methodName, int numArgs = -1)

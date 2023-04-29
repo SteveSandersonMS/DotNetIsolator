@@ -74,26 +74,34 @@ void* deserialize_param(void* length_prefixed_buffer, MonoGCHandle* value_handle
 		return NULL;
 	}
 
-	if (deserialize_param_dotnet_method == 0) {
-		deserialize_param_dotnet_method = lookup_dotnet_method("DotNetIsolator.WasmApp", "DotNetIsolator.WasmApp", "Serialization", "Deserialize", -1);
-	}
+	MonoObject* result;
 
-	void* method_params[] = { length_prefixed_buffer + 4, length_prefixed_buffer };
-	MonoObject* result = mono_wasm_invoke_method(
-		deserialize_param_dotnet_method,
-		NULL,
-		method_params,
-		exception_buf);
+	if (*(int*)length_prefixed_buffer) {
+		if (deserialize_param_dotnet_method == 0) {
+			deserialize_param_dotnet_method = lookup_dotnet_method("DotNetIsolator.WasmApp", "DotNetIsolator.WasmApp", "Serialization", "Deserialize", -1);
+		}
 
-	if (*exception_buf) {
-		*value_handle = NULL;
-		*exception_msg = (MonoString*)result;
-		return NULL;
-	}
+		void* method_params[] = { length_prefixed_buffer + 4, length_prefixed_buffer };
+		result = mono_wasm_invoke_method(
+			deserialize_param_dotnet_method,
+			NULL,
+			method_params,
+			exception_buf);
 
-	if (!result) {
-		*value_handle = NULL;
-		return NULL;
+		if (*exception_buf) {
+			*value_handle = NULL;
+			*exception_msg = (MonoString*)result;
+			return NULL;
+		}
+
+		if (!result) {
+			*value_handle = NULL;
+			return NULL;
+		}
+	} else {
+		// Special size 0 case just with handle
+		uint32_t handle = *(uint32_t*)(length_prefixed_buffer + 4);
+		result = mono_gchandle_get_target(handle);
 	}
 
 	// I don't actually know for sure if it's necessary to pin these MonoObject* for the duration between

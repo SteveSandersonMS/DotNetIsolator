@@ -39,13 +39,13 @@ public class IsolatedMethod : IEquatable<IsolatedMethod>
         return allocator.Release();
     }
 
-    public TRes Invoke<TRes>(IsolatedObject? instance)
-        => _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, Span<int>.Empty);
-
-    public TRes Invoke<T0, TRes>(IsolatedObject? instance, T0 param0)
+    private TRes Invoke<TRes>(IsolatedObject? instance, Span<int> argAddresses)
     {
-        Span<int> argAddresses = stackalloc int[1];
-        using var allocator = _runtimeInstance.GetAllocator();
+        return _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, argAddresses);
+    }
+
+    private TRes Invoke<T0, TRes>(IsolatedObject? instance, T0 param0, Span<int> argAddresses, IsolatedAllocator allocator)
+    {
         argAddresses[0] = Serialize(param0, allocator);
 
         try
@@ -56,90 +56,102 @@ public class IsolatedMethod : IEquatable<IsolatedMethod>
         {
             _runtimeInstance.Free(argAddresses[0]);
         }
+    }
+
+    private TRes Invoke<T0, T1, TRes>(IsolatedObject? instance, T0 param0, T1 param1, Span<int> argAddresses, IsolatedAllocator allocator)
+    {
+        argAddresses[1] = Serialize(param1, allocator);
+
+        try
+        {
+            return Invoke<T0, TRes>(instance, param0, argAddresses, allocator);
+        }
+        finally
+        {
+            _runtimeInstance.Free(argAddresses[1]);
+        }
+    }
+
+    private TRes Invoke<T0, T1, T2, TRes>(IsolatedObject? instance, T0 param0, T1 param1, T2 param2, Span<int> argAddresses, IsolatedAllocator allocator)
+    {
+        argAddresses[2] = Serialize(param2, allocator);
+
+        try
+        {
+            return Invoke<T0, T1, TRes>(instance, param0, param1, argAddresses, allocator);
+        }
+        finally
+        {
+            _runtimeInstance.Free(argAddresses[2]);
+        }
+    }
+
+    private TRes Invoke<T0, T1, T2, T3, TRes>(IsolatedObject? instance, T0 param0, T1 param1, T2 param2, T3 param3, Span<int> argAddresses, IsolatedAllocator allocator)
+    {
+        argAddresses[3] = Serialize(param3, allocator);
+
+        try
+        {
+            return Invoke<T0, T1, T2, TRes>(instance, param0, param1, param2, argAddresses, allocator);
+        }
+        finally
+        {
+            _runtimeInstance.Free(argAddresses[3]);
+        }
+    }
+
+    private TRes Invoke<T0, T1, T2, T3, T4, TRes>(IsolatedObject? instance, T0 param0, T1 param1, T2 param2, T3 param3, T4 param4, Span<int> argAddresses, IsolatedAllocator allocator)
+    {
+        argAddresses[4] = Serialize(param4, allocator);
+
+        try
+        {
+            return Invoke<T0, T1, T2, T3, TRes>(instance, param0, param1, param2, param3, argAddresses, allocator);
+        }
+        finally
+        {
+            _runtimeInstance.Free(argAddresses[4]);
+        }
+    }
+
+    public TRes Invoke<TRes>(IsolatedObject? instance)
+    {
+        return _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, ReadOnlySpan<int>.Empty);
+    }
+
+    public TRes Invoke<T0, TRes>(IsolatedObject? instance, T0 param0)
+    {
+        Span<int> argAddresses = stackalloc int[1];
+        using var allocator = _runtimeInstance.GetAllocator();
+        return Invoke<T0, TRes>(instance, param0, argAddresses, allocator);
     }
 
     public TRes Invoke<T0, T1, TRes>(IsolatedObject? instance, T0 param0, T1 param1)
     {
         Span<int> argAddresses = stackalloc int[2];
         using var allocator = _runtimeInstance.GetAllocator();
-        argAddresses[0] = Serialize(param0, allocator);
-        argAddresses[1] = Serialize(param1, allocator);
-
-        try
-        {
-            return _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, argAddresses);
-        }
-        finally
-        {
-            _runtimeInstance.Free(argAddresses[0]);
-            _runtimeInstance.Free(argAddresses[1]);
-        }
+        return Invoke<T0, T1, TRes>(instance, param0, param1, argAddresses, allocator);
     }
 
     public TRes Invoke<T0, T1, T2, TRes>(IsolatedObject? instance, T0 param0, T1 param1, T2 param2)
     {
         Span<int> argAddresses = stackalloc int[3];
         using var allocator = _runtimeInstance.GetAllocator();
-        argAddresses[0] = Serialize(param0, allocator);
-        argAddresses[1] = Serialize(param1, allocator);
-        argAddresses[2] = Serialize(param2, allocator);
-
-        try
-        {
-            return _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, argAddresses);
-        }
-        finally
-        {
-            _runtimeInstance.Free(argAddresses[0]);
-            _runtimeInstance.Free(argAddresses[1]);
-            _runtimeInstance.Free(argAddresses[2]);
-        }
+        return Invoke<T0, T1, T2, TRes>(instance, param0, param1, param2, argAddresses, allocator);
     }
 
     public TRes Invoke<T0, T1, T2, T3, TRes>(IsolatedObject? instance, T0 param0, T1 param1, T2 param2, T3 param3)
     {
         Span<int> argAddresses = stackalloc int[4];
         using var allocator = _runtimeInstance.GetAllocator();
-        argAddresses[0] = Serialize(param0, allocator);
-        argAddresses[1] = Serialize(param1, allocator);
-        argAddresses[2] = Serialize(param2, allocator);
-        argAddresses[3] = Serialize(param3, allocator);
-
-        try
-        {
-            return _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, argAddresses);
-        }
-        finally
-        {
-            _runtimeInstance.Free(argAddresses[0]);
-            _runtimeInstance.Free(argAddresses[1]);
-            _runtimeInstance.Free(argAddresses[2]);
-            _runtimeInstance.Free(argAddresses[3]);
-        }
+        return Invoke<T0, T1, T2, T3, TRes>(instance, param0, param1, param2, param3, argAddresses, allocator);
     }
 
     public TRes Invoke<T0, T1, T2, T3, T4, TRes>(IsolatedObject? instance, T0 param0, T1 param1, T2 param2, T3 param3, T4 param4)
     {
         Span<int> argAddresses = stackalloc int[5];
         using var allocator = _runtimeInstance.GetAllocator();
-        argAddresses[0] = Serialize(param0, allocator);
-        argAddresses[1] = Serialize(param1, allocator);
-        argAddresses[2] = Serialize(param2, allocator);
-        argAddresses[3] = Serialize(param3, allocator);
-        argAddresses[4] = Serialize(param4, allocator);
-
-        try
-        {
-            return _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, argAddresses);
-        }
-        finally
-        {
-            _runtimeInstance.Free(argAddresses[0]);
-            _runtimeInstance.Free(argAddresses[1]);
-            _runtimeInstance.Free(argAddresses[2]);
-            _runtimeInstance.Free(argAddresses[3]);
-            _runtimeInstance.Free(argAddresses[4]);
-        }
+        return Invoke<T0, T1, T2, T3, T4, TRes>(instance, param0, param1, param2, param3, param4, argAddresses, allocator);
     }
 
     public TRes Invoke<TRes>(IsolatedObject? instance, params object[] args)
@@ -151,19 +163,20 @@ public class IsolatedMethod : IEquatable<IsolatedMethod>
     {
         Span<int> argAddresses = stackalloc int[args.Length];
         using var allocator = _runtimeInstance.GetAllocator();
-        for (int i = 0; i < args.Length; i++)
-        {
-            argAddresses[i] = Serialize(args[i], allocator);
-        }
+        int i = 0;
         try
         {
+            for (; i < args.Length; i++)
+            {
+                argAddresses[i] = Serialize(args[i], allocator);
+            }
             return _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, argAddresses);
         }
         finally
         {
-            for (int i = 0; i < args.Length; i++)
+            for (int j = 0; j < i; j++)
             {
-                _runtimeInstance.Free(argAddresses[i]);
+                _runtimeInstance.Free(argAddresses[j]);
             }
         }
     }

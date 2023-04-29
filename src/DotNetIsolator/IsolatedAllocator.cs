@@ -2,7 +2,7 @@
 
 namespace DotNetIsolator;
 
-public sealed class IsolatedAllocator : IBufferWriter<byte>, IDisposable
+public sealed class IsolatedAllocator : MemoryManager<byte>, IBufferWriter<byte>, IDisposable
 {
     readonly IsolatedRuntime _runtimeInstance;
 
@@ -54,21 +54,31 @@ public sealed class IsolatedAllocator : IBufferWriter<byte>, IDisposable
 
     public Memory<byte> GetMemory(int sizeHint = 0)
     {
-        throw new NotImplementedException();
+        Reserve(_offset + Math.Max(minSize, sizeHint));
+        return CreateMemory(_offset, _allocatedSize - _offset);
     }
 
-    public void Dispose()
+    protected override void Dispose(bool disposing)
     {
-        if (_memoryPtr != 0)
+        if(_memoryPtr != 0)
         {
             _runtimeInstance.Free(_memoryPtr);
             _memoryPtr = 0;
         }
-        GC.SuppressFinalize(this);
     }
 
-    ~IsolatedAllocator()
+    public override Span<byte> GetSpan()
     {
-        Dispose();
+        return _runtimeInstance.GetMemory(_memoryPtr, _allocatedSize);
+    }
+
+    public override MemoryHandle Pin(int elementIndex = 0)
+    {
+        throw new NotSupportedException();
+    }
+
+    public override void Unpin()
+    {
+        throw new NotSupportedException();
     }
 }

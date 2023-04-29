@@ -3,13 +3,13 @@
 public class IsolatedObject : IDisposable
 {
     private readonly IsolatedRuntime _runtimeInstance;
-    private readonly int _monoClass;
+    private readonly int _monoClassPtr;
 
-    internal IsolatedObject(IsolatedRuntime runtimeInstance, int gcHandle, int monoClass)
+    internal IsolatedObject(IsolatedRuntime runtimeInstance, int gcHandle, int monoClassPtr)
     {
         _runtimeInstance = runtimeInstance;
         GuestGCHandle = gcHandle;
-        _monoClass = monoClass;
+        _monoClassPtr = monoClassPtr;
     }
 
     internal int GuestGCHandle { get; private set; }
@@ -21,7 +21,7 @@ public class IsolatedObject : IDisposable
             throw new InvalidOperationException("Cannot look up instance method because the object has already been released.");
         }
 
-        return _runtimeInstance.GetMethod(_monoClass, methodName);
+        return _runtimeInstance.GetMethod(_monoClassPtr, methodName, numArgs);
     }
 
     public TRes Invoke<TRes>(string methodName)
@@ -68,7 +68,7 @@ public class IsolatedObject : IDisposable
 
     public T Deserialize<T>()
     {
-        return _runtimeInstance.InvokeDotNetMethod<T>(0, this, default);
+        return _runtimeInstance.InvokeMethod<T>(0, this, default);
     }
 
     protected virtual void Dispose(bool disposing)

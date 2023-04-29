@@ -14,7 +14,7 @@ public class IsolatedMethod
     }
 
     public TRes Invoke<TRes>(IsolatedObject? instance)
-        => _runtimeInstance.InvokeDotNetMethod<TRes>(_monoMethodPtr, instance, Span<int>.Empty);
+        => _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, Span<int>.Empty);
 
     public TRes Invoke<T0, TRes>(IsolatedObject? instance, T0 param0)
     {
@@ -28,7 +28,7 @@ public class IsolatedMethod
 
         try
         {
-            return _runtimeInstance.InvokeDotNetMethod<TRes>(_monoMethodPtr, instance, argAddresses);
+            return _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, argAddresses);
         }
         finally
         {
@@ -46,7 +46,7 @@ public class IsolatedMethod
 
         try
         {
-            return _runtimeInstance.InvokeDotNetMethod<TRes>(_monoMethodPtr, instance, argAddresses);
+            return _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, argAddresses);
         }
         finally
         {
@@ -67,7 +67,7 @@ public class IsolatedMethod
 
         try
         {
-            return _runtimeInstance.InvokeDotNetMethod<TRes>(_monoMethodPtr, instance, argAddresses);
+            return _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, argAddresses);
         }
         finally
         {
@@ -91,7 +91,7 @@ public class IsolatedMethod
 
         try
         {
-            return _runtimeInstance.InvokeDotNetMethod<TRes>(_monoMethodPtr, instance, argAddresses);
+            return _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, argAddresses);
         }
         finally
         {
@@ -118,7 +118,7 @@ public class IsolatedMethod
 
         try
         {
-            return _runtimeInstance.InvokeDotNetMethod<TRes>(_monoMethodPtr, instance, argAddresses);
+            return _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, argAddresses);
         }
         finally
         {
@@ -145,7 +145,7 @@ public class IsolatedMethod
         }
         try
         {
-            return _runtimeInstance.InvokeDotNetMethod<TRes>(_monoMethodPtr, instance, argAddresses);
+            return _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, argAddresses);
         }
         finally
         {

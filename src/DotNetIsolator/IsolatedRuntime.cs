@@ -218,8 +218,8 @@ public class IsolatedRuntime : IDisposable
         });
     }
 
-    // Internal because you only need to call it via DotNetMethod
-    internal TRes InvokeDotNetMethod<TRes>(int monoMethodPtr, IsolatedObject? instance, ReadOnlySpan<int> argAddresses)
+    // Internal because you only need to call it via IsolatedMethod
+    internal TRes InvokeMethod<TRes>(int monoMethodPtr, IsolatedObject? instance, ReadOnlySpan<int> argAddresses)
     {
         // Prepare an Invocation struct within guest memory
         var len = Unsafe.SizeOf<Invocation>();

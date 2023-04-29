@@ -27,6 +27,8 @@ public class IsolatedRuntime : IDisposable
     private readonly Func<int, int, int, int> _lookupDotNetClass;
     private readonly Func<int, int> _instantiateDotNetClass;
     private readonly Func<int, int, int, int> _lookupDotNetMethod;
+    private readonly Func<int, int, int, int> _lookupDotNetMethodDesc;
+    private readonly Func<int, int, int, int> _lookupGlobalDotNetMethodDesc;
     private readonly Func<int, int, int, int> _deserializeAsDotNetObject;
     private readonly Func<int, int, int> _reflectClass;
     private readonly Func<int, int, int> _reflectMethod;
@@ -35,6 +37,8 @@ public class IsolatedRuntime : IDisposable
 
     private readonly ConcurrentDictionary<(string AssemblyName, string? Namespace, string TypeName), IsolatedClass> _classLookupCache = new();
     private readonly ConcurrentDictionary<(int MonoClass, string MethodName, int NumArgs), IsolatedMethod> _methodLookupCache = new();
+    private readonly ConcurrentDictionary<(string AssemblyName, string MethodDesc, bool MatchNamespace), IsolatedMethod> _globalMethodLookupCache = new();
+    private readonly ConcurrentDictionary<(int MonoClass, string MethodDesc, bool MatchNamespace), IsolatedMethod> _methodDescLookupCache = new();
     private readonly ShadowStack _shadowStack;
     private readonly Dictionary<string, Delegate> _registeredCallbacks = new();
     private bool _isDisposed;
@@ -63,6 +67,10 @@ public class IsolatedRuntime : IDisposable
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_instantiate_class'");
         _lookupDotNetMethod = _instance.GetFunction<int, int, int, int>("dotnetisolator_lookup_method")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_lookup_method'");
+        _lookupDotNetMethodDesc = _instance.GetFunction<int, int, int, int>("dotnetisolator_lookup_method_desc")
+            ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_lookup_method_desc'");
+        _lookupGlobalDotNetMethodDesc = _instance.GetFunction<int, int, int, int>("dotnetisolator_lookup_global_method_desc")
+            ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_lookup_global_method_desc'");
         _deserializeAsDotNetObject = _instance.GetFunction<int, int, int, int>("dotnetisolator_deserialize_object")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_deserialize_object'");
         _reflectClass = _instance.GetFunction<int, int, int>("dotnetisolator_reflect_class")
@@ -200,8 +208,33 @@ public class IsolatedRuntime : IDisposable
     {
         _memory.WriteInt32(address, value);
     }
+    
+    public IsolatedMethod? GetMethod(string assemblyName, string methodDesc, bool matchNamespace)
+    {
+        try
+        {
+            return _globalMethodLookupCache.GetOrAdd((assemblyName, methodDesc, matchNamespace), info => {
+                // All these CopyValue strings are freed inside the C code
+                var monoMethodPtr = _lookupGlobalDotNetMethodDesc(
+                    CopyValue(info.AssemblyName),
+                    CopyValue(info.MethodDesc),
+                    info.MatchNamespace ? 1 : 0);
 
-    internal IsolatedMethod? GetMethod(int monoClassPtr, string methodName, int numArgs = -1)
+                if (monoMethodPtr == 0)
+                {
+                    throw new IsolatedException();
+                }
+
+                return new IsolatedMethod(this, monoMethodPtr);
+            });
+        }
+        catch (IsolatedException)
+        {
+            return null;
+        }
+    }
+
+    internal IsolatedMethod? GetMethod(int monoClassPtr, string methodName, int numArgs)
     {
         try
         {
@@ -212,6 +245,32 @@ public class IsolatedRuntime : IDisposable
                     info.MonoClass,
                     CopyValue(info.MethodName),
                     info.NumArgs);
+
+                if (methodPtr == 0)
+                {
+                    throw new IsolatedException();
+                }
+
+                return new IsolatedMethod(this, methodPtr);
+            });
+        }
+        catch (IsolatedException)
+        {
+            return null;
+        }
+    }
+
+    internal IsolatedMethod? GetMethod(int monoClassPtr, string methodDesc, bool matchNamespace)
+    {
+        try
+        {
+            return _methodDescLookupCache.GetOrAdd((monoClassPtr, methodDesc, matchNamespace), info =>
+            {
+                // All these CopyValue strings are freed inside the C code
+                var methodPtr = _lookupDotNetMethodDesc(
+                    info.MonoClass,
+                    CopyValue(info.MethodDesc),
+                    info.MatchNamespace ? 1 : 0);
 
                 if (methodPtr == 0)
                 {

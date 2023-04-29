@@ -38,6 +38,11 @@ public class IsolatedClass : IsolatedMember, IEquatable<IsolatedClass>
         return _runtimeInstance.GetMethod(_monoClassPtr, methodName, numArgs);
     }
 
+    public IsolatedMethod? GetMethod(string methodDesc, bool matchNamespace)
+    {
+        return _runtimeInstance.GetMethod(_monoClassPtr, methodDesc, matchNamespace);
+    }
+
     protected override IsolatedObject GetReflectionObject()
     {
         return _runtimeInstance.GetReflectionClass(_monoClassPtr);

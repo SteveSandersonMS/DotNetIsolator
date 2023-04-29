@@ -1,8 +1,9 @@
 #include <assert.h>
 #include <stdio.h>
 #include <mono/metadata/appdomain.h>
-#include <mono/metadata/metadata.h>
 #include <mono/metadata/class.h>
+#include <mono/metadata/debug-helpers.h>
+#include <mono/metadata/metadata.h>
 #include <mono/metadata/reflection.h>
 #include <mono-wasi/driver.h>
 
@@ -66,6 +67,35 @@ MonoMethod* dotnetisolator_lookup_method(MonoClass* class, char* method_name, in
 	MonoMethod* result = mono_wasm_assembly_find_method(class, method_name, num_params);
 
 	free(method_name);
+	return result;
+}
+
+__attribute__((export_name("dotnetisolator_lookup_method_desc")))
+MonoMethod* dotnetisolator_lookup_method_desc(MonoClass* class, char* method_desc, int includes_namespace) {
+	//printf("Trying to find %s\n", method_name);
+
+	MonoMethodDesc* desc = mono_method_desc_new(method_desc, includes_namespace);
+	MonoMethod* result = mono_method_desc_search_in_class(desc, class);
+
+	mono_method_desc_free(desc);
+	free(method_desc);
+	return result;
+}
+
+__attribute__((export_name("dotnetisolator_lookup_global_method_desc")))
+MonoMethod* dotnetisolator_lookup_global_method_desc(char* assembly_name, char* method_desc, int includes_namespace) {
+	//printf("Trying to find %s %s\n", assembly_name, method_name);
+	
+	MonoAssembly* assembly = mono_wasm_assembly_load(assembly_name);
+	MonoMethod* result = NULL;
+	if (assembly) {
+		MonoMethodDesc* desc = mono_method_desc_new(method_desc, includes_namespace);
+		result = mono_method_desc_search_in_image(desc, mono_assembly_get_image(assembly));
+
+		mono_method_desc_free(desc);
+	}
+
+	free(method_desc);
 	return result;
 }
 

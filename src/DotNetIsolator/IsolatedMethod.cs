@@ -30,18 +30,23 @@ public class IsolatedMethod : IEquatable<IsolatedMethod>
         return HashCode.Combine(_runtimeInstance, _monoMethodPtr);
     }
 
-    public TRes Invoke<TRes>(IsolatedObject? instance)
-        => _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, Span<int>.Empty);
-
-    public TRes Invoke<T0, TRes>(IsolatedObject? instance, T0 param0)
+    private int Serialize<T>(T value)
     {
         // Ideally we'd serialize directly into guest memory but that probably involves implementing
         // an IBufferWriter<byte> that knows how to allocate chunks of guest memory
         // We might also want to special-case some basic known parameter types and skip MessagePack
         // for them, instead using ShadowStack and the raw bytes
+        return _runtimeInstance.CopyValueLengthPrefixed(
+            MessagePackSerializer.Typeless.Serialize(value));
+    }
+
+    public TRes Invoke<TRes>(IsolatedObject? instance)
+        => _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, Span<int>.Empty);
+
+    public TRes Invoke<T0, TRes>(IsolatedObject? instance, T0 param0)
+    {
         Span<int> argAddresses = stackalloc int[1];
-        argAddresses[0] = _runtimeInstance.CopyValueLengthPrefixed(
-            MessagePackSerializer.Typeless.Serialize(param0));
+        argAddresses[0] = Serialize(param0);
 
         try
         {
@@ -56,10 +61,8 @@ public class IsolatedMethod : IEquatable<IsolatedMethod>
     public TRes Invoke<T0, T1, TRes>(IsolatedObject? instance, T0 param0, T1 param1)
     {
         Span<int> argAddresses = stackalloc int[2];
-        argAddresses[0] = _runtimeInstance.CopyValueLengthPrefixed(
-            MessagePackSerializer.Typeless.Serialize(param0));
-        argAddresses[1] = _runtimeInstance.CopyValueLengthPrefixed(
-            MessagePackSerializer.Typeless.Serialize(param1));
+        argAddresses[0] = Serialize(param0);
+        argAddresses[1] = Serialize(param1);
 
         try
         {
@@ -75,12 +78,9 @@ public class IsolatedMethod : IEquatable<IsolatedMethod>
     public TRes Invoke<T0, T1, T2, TRes>(IsolatedObject? instance, T0 param0, T1 param1, T2 param2)
     {
         Span<int> argAddresses = stackalloc int[3];
-        argAddresses[0] = _runtimeInstance.CopyValueLengthPrefixed(
-            MessagePackSerializer.Typeless.Serialize(param0));
-        argAddresses[1] = _runtimeInstance.CopyValueLengthPrefixed(
-            MessagePackSerializer.Typeless.Serialize(param1));
-        argAddresses[2] = _runtimeInstance.CopyValueLengthPrefixed(
-            MessagePackSerializer.Typeless.Serialize(param2));
+        argAddresses[0] = Serialize(param0);
+        argAddresses[1] = Serialize(param1);
+        argAddresses[2] = Serialize(param2);
 
         try
         {
@@ -97,14 +97,10 @@ public class IsolatedMethod : IEquatable<IsolatedMethod>
     public TRes Invoke<T0, T1, T2, T3, TRes>(IsolatedObject? instance, T0 param0, T1 param1, T2 param2, T3 param3)
     {
         Span<int> argAddresses = stackalloc int[4];
-        argAddresses[0] = _runtimeInstance.CopyValueLengthPrefixed(
-            MessagePackSerializer.Typeless.Serialize(param0));
-        argAddresses[1] = _runtimeInstance.CopyValueLengthPrefixed(
-            MessagePackSerializer.Typeless.Serialize(param1));
-        argAddresses[2] = _runtimeInstance.CopyValueLengthPrefixed(
-            MessagePackSerializer.Typeless.Serialize(param2));
-        argAddresses[3] = _runtimeInstance.CopyValueLengthPrefixed(
-            MessagePackSerializer.Typeless.Serialize(param3));
+        argAddresses[0] = Serialize(param0);
+        argAddresses[1] = Serialize(param1);
+        argAddresses[2] = Serialize(param2);
+        argAddresses[3] = Serialize(param3);
 
         try
         {
@@ -122,16 +118,11 @@ public class IsolatedMethod : IEquatable<IsolatedMethod>
     public TRes Invoke<T0, T1, T2, T3, T4, TRes>(IsolatedObject? instance, T0 param0, T1 param1, T2 param2, T3 param3, T4 param4)
     {
         Span<int> argAddresses = stackalloc int[5];
-        argAddresses[0] = _runtimeInstance.CopyValueLengthPrefixed(
-            MessagePackSerializer.Typeless.Serialize(param0));
-        argAddresses[1] = _runtimeInstance.CopyValueLengthPrefixed(
-            MessagePackSerializer.Typeless.Serialize(param1));
-        argAddresses[2] = _runtimeInstance.CopyValueLengthPrefixed(
-            MessagePackSerializer.Typeless.Serialize(param2));
-        argAddresses[3] = _runtimeInstance.CopyValueLengthPrefixed(
-            MessagePackSerializer.Typeless.Serialize(param3));
-        argAddresses[4] = _runtimeInstance.CopyValueLengthPrefixed(
-            MessagePackSerializer.Typeless.Serialize(param4));
+        argAddresses[0] = Serialize(param0);
+        argAddresses[1] = Serialize(param1);
+        argAddresses[2] = Serialize(param2);
+        argAddresses[3] = Serialize(param3);
+        argAddresses[4] = Serialize(param4);
 
         try
         {
@@ -157,8 +148,7 @@ public class IsolatedMethod : IEquatable<IsolatedMethod>
         Span<int> argAddresses = stackalloc int[args.Length];
         for (int i = 0; i < args.Length; i++)
         {
-            argAddresses[i] = _runtimeInstance.CopyValueLengthPrefixed(
-                MessagePackSerializer.Typeless.Serialize(args[i]));
+            argAddresses[i] = Serialize(args[i]);
         }
         try
         {

@@ -13,6 +13,10 @@ public abstract class IsolatedMember : IDisposable, IIsolatedGCHandle
         return ReflectionObject.ToString();
     }
 
+    public abstract override bool Equals(object obj);
+
+    public abstract override int GetHashCode();
+
     protected virtual void Dispose(bool disposing)
     {
         if (disposing)

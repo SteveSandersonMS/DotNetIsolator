@@ -104,7 +104,7 @@ public class IsolatedRuntime : IDisposable
 
                 if (monoClassPtr == 0)
                 {
-                    throw new IsolatedException(null);
+                    throw new IsolatedException();
                 }
 
                 return new IsolatedClass(this, monoClassPtr);
@@ -134,7 +134,7 @@ public class IsolatedRuntime : IDisposable
             if (errorMessageBuf.Value != 0)
             {
                 var errorMessage = ReadDotNetString(errorMessageBuf.Value);
-                throw new IsolatedException(errorMessage);
+                throw new IsolatedException(errorMessage, new IsolatedObject(this, gcHandle, _getDotNetClass(gcHandle)));
             }
 
             return new IsolatedObject(this, gcHandle, _getDotNetClass(gcHandle));
@@ -204,7 +204,7 @@ public class IsolatedRuntime : IDisposable
 
                 if (methodPtr == 0)
                 {
-                    throw new IsolatedException(null);
+                    throw new IsolatedException();
                 }
 
                 return new IsolatedMethod(this, methodPtr);
@@ -241,7 +241,7 @@ public class IsolatedRuntime : IDisposable
             if (invocation.ResultException != 0)
             {
                 var exceptionString = ReadDotNetString(invocation.ResultException);
-                throw new IsolatedException(exceptionString);
+                throw new IsolatedException(exceptionString, new IsolatedObject(this, invocation.ResultGCHandle, invocation.ResultPtr));
             }
 
             if (invocation.ResultPtr == 0)
@@ -252,8 +252,7 @@ public class IsolatedRuntime : IDisposable
             {
                 if (asHandle)
                 {
-                    var resulTypePtr = invocation.ResultPtr;
-                    return (TRes)(object)new IsolatedObject(this, invocation.ResultGCHandle, resulTypePtr);
+                    return (TRes)(object)new IsolatedObject(this, invocation.ResultGCHandle, invocation.ResultPtr);
                 }
                 else
                 {

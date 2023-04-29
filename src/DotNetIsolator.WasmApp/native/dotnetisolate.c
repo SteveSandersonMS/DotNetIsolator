@@ -80,7 +80,7 @@ MonoMethod* dotnetisolator_lookup_method(MonoClass* class, char* method_name, in
 MonoMethod* deserialize_param_dotnet_method;
 MonoMethod* serialize_return_value_dotnet_method;
 
-void* deserialize_param(void* length_prefixed_buffer, MonoGCHandle* value_handle, MonoObject** exception_buf) {
+void* deserialize_param(void* length_prefixed_buffer, MonoGCHandle* value_handle, MonoObject** exception_buf, MonoString** exception_msg) {
 	if (!length_prefixed_buffer) {
 		return NULL;
 	}
@@ -96,6 +96,12 @@ void* deserialize_param(void* length_prefixed_buffer, MonoGCHandle* value_handle
 		method_params,
 		exception_buf);
 
+	if (*exception_buf) {
+		*value_handle = NULL;
+		*exception_msg = (MonoString*)result;
+		return NULL;
+	}
+
 	if (!result) {
 		*value_handle = NULL;
 		return NULL;
@@ -110,7 +116,7 @@ void* deserialize_param(void* length_prefixed_buffer, MonoGCHandle* value_handle
 	return must_unbox ? mono_object_unbox(result) : result;
 }
 
-void serialize_return_value(MonoObject* value, RunnerInvocation* invocation, MonoObject** exception_buf) {
+void serialize_return_value(MonoObject* value, RunnerInvocation* invocation, MonoObject** exception_buf, MonoString** exception_msg) {
 	if (!value) {
 		invocation->result_ptr = NULL;
 		return;
@@ -128,6 +134,12 @@ void serialize_return_value(MonoObject* value, RunnerInvocation* invocation, Mon
 
 	void* method_params[] = { value };
 	MonoObject* byte_array = mono_wasm_invoke_method(serialize_return_value_dotnet_method, NULL, method_params, exception_buf);
+
+	if (*exception_buf) {
+		*exception_msg = (MonoString*)byte_array;
+		return;
+	}
+
 	invocation->result_ptr = mono_array_addr_with_size((MonoArray*)byte_array, 1, 0);
 	invocation->result_length = mono_array_length((MonoArray*)byte_array);
 	invocation->result_handle = (MonoGCHandle)mono_gchandle_new(byte_array, /* pinned */ 1);
@@ -136,13 +148,14 @@ void serialize_return_value(MonoObject* value, RunnerInvocation* invocation, Mon
 __attribute__((export_name("dotnetisolator_invoke_method")))
 void dotnetisolator_invoke_method(RunnerInvocation* invocation) {
 	MonoObject* exc = NULL;
+	MonoString* exc_msg = NULL;
 
 	int num_args = invocation->args_length_prefixed_buffers_length;
 	void* method_params[num_args];
 	MonoGCHandle arg_handles[num_args];
 	for (int i = 0; i < num_args; i++) {
 		void* arg_length_prefixed_buffer = invocation->args_length_prefixed_buffers[i];
-		method_params[i] = deserialize_param(arg_length_prefixed_buffer, &arg_handles[i], &exc);
+		method_params[i] = deserialize_param(arg_length_prefixed_buffer, &arg_handles[i], &exc, &exc_msg);
 		if (exc) {
 			break;
 		}
@@ -163,6 +176,10 @@ void dotnetisolator_invoke_method(RunnerInvocation* invocation) {
 				}
 			}
 			result = mono_wasm_invoke_method(invocation->method_ptr, target, method_params, &exc);
+			if (exc) {
+				exc_msg = (MonoString*)result;
+				result = NULL;
+			}
 		} else {
 			result = target;
 		}
@@ -174,31 +191,30 @@ void dotnetisolator_invoke_method(RunnerInvocation* invocation) {
 		}
 
 		if (!exc) {
-			serialize_return_value(result, invocation, &exc);
+			serialize_return_value(result, invocation, &exc, &exc_msg);
 		}
 	}
 
 	if (exc) {
 		// Return a string representation of the error
-		MonoObject* ignored_tostring_exception;
-		invocation->result_exception = mono_object_to_string(exc, &ignored_tostring_exception);
+		invocation->result_type = RESULT_TYPE_HANDLE;
+		invocation->result_exception = exc_msg;
+		serialize_return_value(exc, invocation, &exc, &exc_msg);
 	}
 }
 
 __attribute__((export_name("dotnetisolator_deserialize_object")))
-MonoGCHandle dotnetisolator_deserialize_object(void* length_prefixed_buffer, MonoString** error_monostring) {
+MonoGCHandle dotnetisolator_deserialize_object(void* length_prefixed_buffer, MonoString** err_msg) {
 	//printf("addr: %p; len: %i; first: %i\n", length_prefixed_buffer, ((int*)length_prefixed_buffer)[0], ((unsigned char*)length_prefixed_buffer)[4]);
 	MonoGCHandle result;
-	MonoObject* deserialization_exception = NULL;
-	deserialize_param(length_prefixed_buffer, &result, &deserialization_exception);
+	MonoObject* exc = NULL;
+	deserialize_param(length_prefixed_buffer, &result, &exc, err_msg);
 
-	if (deserialization_exception) {
-		// Return a string representation of the error
-		MonoObject* ignored_tostring_exception;
-		*error_monostring = mono_object_to_string(deserialization_exception, &ignored_tostring_exception);
-		return NULL;
+	if (exc) {
+		// Return the exception handle
+		return (MonoGCHandle)mono_gchandle_new(exc, /* pinned */ 0);
 	} else {
-		*error_monostring = NULL;
+		*err_msg = NULL;
 		return result;
 	}
 }

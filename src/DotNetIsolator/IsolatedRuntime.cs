@@ -29,7 +29,7 @@ public class IsolatedRuntime : IDisposable
     private readonly Func<int, int, int> _deserializeAsDotNetObject;
     private readonly Action<int> _invokeDotNetMethod;
     private readonly Action<int> _releaseObject;
-    private readonly ConcurrentDictionary<(string AssemblyName, string? Namespace, string TypeName), int> _classLookupCache = new();
+    private readonly ConcurrentDictionary<(string AssemblyName, string? Namespace, string TypeName), IsolatedClass> _classLookupCache = new();
     private readonly ConcurrentDictionary<(int MonoClass, string MethodName, int NumArgs), IsolatedMethod> _methodLookupCache = new();
     private readonly ShadowStack _shadowStack;
     private readonly Dictionary<string, Delegate> _registeredCallbacks = new();
@@ -83,10 +83,7 @@ public class IsolatedRuntime : IDisposable
 
     internal ShadowStack ShadowStack => _shadowStack;
 
-    public IsolatedObject CreateObject(string assemblyName, string? @namespace, string className)
-        => CreateObject(assemblyName, @namespace, declaringTypeName: null, className);
-
-    private int GetClass(string assemblyName, string? @namespace, string? declaringTypeName, string className)
+    public IsolatedClass GetClass(string assemblyName, string? @namespace, string? declaringTypeName, string className)
     {
         return _classLookupCache.GetOrAdd((assemblyName, @namespace, className), info => {
             var errorMessageParam = _shadowStack.Push<int>();
@@ -94,7 +91,7 @@ public class IsolatedRuntime : IDisposable
             {
                 var monoClassName = declaringTypeName is null ? className : $"{declaringTypeName}/{className}";
                 // All these CopyValue strings are freed inside the C code
-                var monoClass = _lookupDotNetClass(
+                var monoClassPtr = _lookupDotNetClass(
                     CopyValue(info.AssemblyName),
                     CopyValue(info.Namespace),
                     CopyValue(monoClassName),
@@ -107,7 +104,7 @@ public class IsolatedRuntime : IDisposable
                     throw new IsolatedException(errorString);
                 }
 
-                return monoClass;
+                return new IsolatedClass(this, monoClassPtr);
             }
             finally
             {
@@ -116,17 +113,11 @@ public class IsolatedRuntime : IDisposable
         });
     }
 
-    public IsolatedObject CreateObject(string assemblyName, string? @namespace, string? declaringTypeName, string className)
+    internal IsolatedObject CreateObject(int monoClassPtr)
     {
-        var monoClass = GetClass(assemblyName, @namespace, declaringTypeName, className);
-
-        var gcHandle = _instantiateDotNetClass(monoClass);
-
-        return new IsolatedObject(this, gcHandle, monoClass);
+        var gcHandle = _instantiateDotNetClass(monoClassPtr);
+        return new IsolatedObject(this, gcHandle, monoClassPtr);
     }
-
-    public IsolatedObject CreateObject<T>()
-        => CreateObject(typeof(T).Assembly.GetName().Name!, typeof(T).Namespace, typeof(T).DeclaringType?.Name, typeof(T).Name);
 
     public IsolatedObject CopyObject<T>(T value)
     {
@@ -196,29 +187,17 @@ public class IsolatedRuntime : IDisposable
     internal int CopyValueLengthPrefixed(ReadOnlySpan<byte> value)
         => CopyValue(value, addLengthPrefix: true);
 
-    public IsolatedMethod GetMethod(Type type, string methodName)
-        => GetMethod(type.Assembly.GetName().Name!, type.Namespace, type.DeclaringType?.Name, type.Name, methodName);
-
-    public IsolatedMethod GetMethod(Type type, string methodName, int numArgs)
-        => GetMethod(type.Assembly.GetName().Name!, type.Namespace, type.DeclaringType?.Name, type.Name, methodName, numArgs);
-
-    public IsolatedMethod GetMethod(string assemblyName, string? @namespace, string? declaringTypeName, string typeName, string methodName, int numArgs = -1)
-    {
-        int monoClass = GetClass(assemblyName, @namespace, declaringTypeName, typeName);
-        return GetMethod(monoClass, methodName, numArgs);
-    }
-    
-    internal IsolatedMethod GetMethod(int monoClass, string methodName, int numArgs = -1)
+    internal IsolatedMethod GetMethod(int monoClassPtr, string methodName, int numArgs = -1)
     {
         // Handle lookup failures in a better way.
-        return _methodLookupCache.GetOrAdd((monoClass, methodName, numArgs), info =>
+        return _methodLookupCache.GetOrAdd((monoClassPtr, methodName, numArgs), info =>
         {
             // All these CopyValue strings are freed inside the C code
             var errorMessageParam = _shadowStack.Push<int>();
             try
             {
                 var methodPtr = _lookupDotNetMethod(
-                    monoClass,
+                    monoClassPtr,
                     CopyValue(info.MethodName),
                     info.NumArgs,
                     errorMessageParam.Address);
@@ -359,7 +338,7 @@ public class IsolatedRuntime : IDisposable
     {
         var method = @delegate.Method;
         var methodType = method.DeclaringType!;
-        var wasmMethod = GetMethod(methodType.Assembly.GetName().Name!, methodType.Namespace, methodType.DeclaringType?.Name, methodType.Name, method.Name, -1);
+        var wasmMethod = this.GetMethod(methodType, method.Name, -1);
         return wasmMethod;
     }
 

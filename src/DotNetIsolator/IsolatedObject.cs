@@ -93,6 +93,14 @@ public class IsolatedObject : IDisposable, IIsolatedGCHandle
             _runtimeInstance.ReleaseGCHandle(GuestGCHandle);
             GuestGCHandle = 0;
         }
+        if (disposing)
+        {
+            if (_classCached != null)
+            {
+                _classCached.Dispose();
+                _classCached = null;
+            }
+        }
     }
 
     public void Dispose()

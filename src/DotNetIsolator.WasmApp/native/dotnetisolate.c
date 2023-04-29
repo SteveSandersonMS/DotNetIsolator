@@ -18,6 +18,11 @@ typedef struct RunnerInvocation {
 #define RESULT_TYPE_SERIALIZE 0
 #define RESULT_TYPE_HANDLE 1
 
+__attribute__((export_name("dotnetisolator_realloc")))
+void* dotnetisolator_realloc(void *ptr, size_t size) {
+	return realloc(ptr, size);
+}
+
 __attribute__((export_name("dotnetisolator_instantiate_class")))
 MonoGCHandle dotnetisolator_instantiate_class(MonoClass* class) {
 	MonoObject* instance = mono_object_new(NULL, class);

@@ -1,6 +1,7 @@
 ﻿using DotNetIsolator.Internal;
 using MessagePack;
 using MessagePack.Resolvers;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -21,6 +22,7 @@ public class IsolatedRuntime : IDisposable
     private readonly Instance _instance;
     private readonly Memory _memory;
     private readonly Func<int, int> _malloc;
+    private readonly Func<int, int, int> _realloc;
     private readonly Action<int> _free;
     private readonly Func<int, int, int, int> _lookupDotNetClass;
     private readonly Func<int, int> _getDotNetClass;
@@ -48,6 +50,8 @@ public class IsolatedRuntime : IDisposable
             ?? throw new InvalidOperationException("Missing required export 'malloc'");
         _free = _instance.GetAction<int>("free")
             ?? throw new InvalidOperationException("Missing required export 'free'");
+        _realloc = _instance.GetFunction<int, int, int>("dotnetisolator_realloc")
+            ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_realloc'");
         _lookupDotNetClass = _instance.GetFunction<int, int, int, int>("dotnetisolator_lookup_class")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_lookup_class'");
         _getDotNetClass = _instance.GetFunction<int, int>("dotnetisolator_get_object_class")
@@ -79,6 +83,11 @@ public class IsolatedRuntime : IDisposable
         }
 
         return runtime;
+    }
+
+    public IsolatedAllocator GetAllocator()
+    {
+        return new(this);
     }
 
     public IsolatedClass? GetClass(string assemblyName, string? @namespace, string? declaringTypeName, string className)
@@ -299,9 +308,34 @@ public class IsolatedRuntime : IDisposable
         _store.Dispose();
     }
 
+    internal int Alloc(int size)
+    {
+        var ptr = _malloc(size);
+        if (ptr == 0)
+        {
+            throw new OutOfMemoryException("Not enough memory for malloc.");
+        }
+        return ptr;
+    }
+
+    internal int Realloc(int malloced_ptr, int new_size)
+    {
+        var ptr = _realloc(malloced_ptr, new_size);
+        if(ptr == 0)
+        {
+            throw new OutOfMemoryException("Not enough memory for realloc.");
+        }
+        return ptr;
+    }
+
     internal void Free(int malloced_ptr)
     {
         _free(malloced_ptr);
+    }
+
+    internal Span<byte> GetMemory(int ptr, int size)
+    {
+        return _memory.GetSpan(ptr, size);
     }
 
     public void Invoke(Action value)

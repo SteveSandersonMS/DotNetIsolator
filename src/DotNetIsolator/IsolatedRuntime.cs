@@ -152,11 +152,7 @@ public class IsolatedRuntime : IDisposable
         }
 
         var valueUtf8Length = Encoding.UTF8.GetByteCount(value);
-        var resultPtr = _malloc(valueUtf8Length + 1);
-        if (resultPtr == 0)
-        {
-            throw new InvalidOperationException($"malloc failed when trying to allocate {valueUtf8Length} bytes");
-        }
+        var resultPtr = Alloc(valueUtf8Length + 1);
 
         var destinationSpan = _memory.GetSpan(resultPtr, valueUtf8Length);
         Encoding.UTF8.GetBytes(value, destinationSpan);
@@ -169,11 +165,7 @@ public class IsolatedRuntime : IDisposable
         var lengthPrefixSize = addLengthPrefix ? 4 : 0;
         var valueAsBytes = MemoryMarshal.AsBytes(value);
         var length = valueAsBytes.Length;
-        var resultPtr = _malloc(length + lengthPrefixSize);
-        if (resultPtr == 0)
-        {
-            throw new InvalidOperationException($"malloc failed when trying to allocate {length + 4} bytes");
-        }
+        var resultPtr = Alloc(length + lengthPrefixSize);
 
         if (addLengthPrefix)
         {
@@ -325,7 +317,7 @@ public class IsolatedRuntime : IDisposable
         var ptr = _malloc(size);
         if (ptr == 0)
         {
-            throw new OutOfMemoryException("Not enough memory for malloc.");
+            throw new OutOfMemoryException($"malloc failed when trying to allocate {size} bytes");
         }
         return ptr;
     }
@@ -335,7 +327,7 @@ public class IsolatedRuntime : IDisposable
         var ptr = _realloc(malloced_ptr, new_size);
         if(ptr == 0)
         {
-            throw new OutOfMemoryException("Not enough memory for realloc.");
+            throw new OutOfMemoryException($"realloc failed when trying to allocate {new_size} bytes");
         }
         return ptr;
     }

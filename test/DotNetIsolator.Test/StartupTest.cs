@@ -21,7 +21,7 @@ public class StartupTest
         var p = runtime.CreateObject<object>();
 
         // Can find a method on it
-        var toString = p.FindMethod(nameof(object.ToString));
+        var toString = p.Class.GetMethod(nameof(object.ToString));
         Assert.NotNull(toString);
 
         // Can invoke a method on it

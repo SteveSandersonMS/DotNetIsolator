@@ -3,6 +3,7 @@
 #include <mono/metadata/appdomain.h>
 #include <mono/metadata/metadata.h>
 #include <mono/metadata/class.h>
+#include <mono/metadata/reflection.h>
 #include <mono-wasi/driver.h>
 
 typedef struct RunnerInvocation {
@@ -250,4 +251,18 @@ MonoGCHandle dotnetisolator_deserialize_object(void* length_prefixed_buffer, Mon
 		*class = mono_object_get_class(mono_gchandle_get_target((uint32_t)result));
 		return result;
 	}
+}
+
+__attribute__((export_name("dotnetisolator_reflect_class")))
+MonoGCHandle dotnetisolator_reflect_class(MonoClass* class, MonoClass** result_class) {
+	MonoObject* result = (MonoObject*)mono_type_get_object(mono_get_root_domain(), mono_class_get_type(class));
+	*result_class = mono_object_get_class(result);
+	return (MonoGCHandle)mono_gchandle_new(result, /* pinned */ 0);
+}
+
+__attribute__((export_name("dotnetisolator_reflect_method")))
+MonoGCHandle dotnetisolator_reflect_method(MonoMethod* method, MonoClass** result_class) {
+	MonoObject* result = (MonoObject*)mono_method_get_object(mono_get_root_domain(), method, mono_method_get_class(method));
+	*result_class = mono_object_get_class(result);
+	return (MonoGCHandle)mono_gchandle_new(result, /* pinned */ 0);
 }

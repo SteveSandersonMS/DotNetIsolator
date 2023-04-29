@@ -1,9 +1,8 @@
 ﻿using MessagePack;
-using System.Buffers;
 
 namespace DotNetIsolator;
 
-public class IsolatedMethod : IEquatable<IsolatedMethod>
+public class IsolatedMethod : IsolatedMember, IEquatable<IsolatedMethod>
 {
     private readonly IsolatedRuntime _runtimeInstance;
     private readonly int _monoMethodPtr;
@@ -47,6 +46,12 @@ public class IsolatedMethod : IEquatable<IsolatedMethod>
         return allocator.Release();
     }
 
+    protected override IsolatedObject GetReflectionObject()
+    {
+        return _runtimeInstance.GetReflectionMethod(_monoMethodPtr);
+    }
+
+    #region Invoke overloads
     private TRes Invoke<TRes>(IsolatedObject? instance, Span<int> argAddresses)
     {
         return _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, argAddresses);
@@ -206,4 +211,5 @@ public class IsolatedMethod : IEquatable<IsolatedMethod>
 
     public void InvokeVoid<T0, T1, T2, T3, T4>(IsolatedObject? instance, T0 param0, T1 param1, T2 param2, T3 param3, T4 param4)
         => Invoke<T0, T1, T2, T3, T4, object>(instance, param0, param1, param2, param3, param4);
+    #endregion
 }

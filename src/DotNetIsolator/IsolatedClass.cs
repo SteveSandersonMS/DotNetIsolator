@@ -1,6 +1,6 @@
 ﻿namespace DotNetIsolator;
 
-public class IsolatedClass : IEquatable<IsolatedClass>
+public class IsolatedClass : IsolatedMember, IEquatable<IsolatedClass>
 {
     private readonly IsolatedRuntime _runtimeInstance;
     private readonly int _monoClassPtr;
@@ -36,5 +36,10 @@ public class IsolatedClass : IEquatable<IsolatedClass>
     public IsolatedMethod? GetMethod(string methodName, int numArgs = -1)
     {
         return _runtimeInstance.GetMethod(_monoClassPtr, methodName, numArgs);
+    }
+
+    protected override IsolatedObject GetReflectionObject()
+    {
+        return _runtimeInstance.GetReflectionClass(_monoClassPtr);
     }
 }

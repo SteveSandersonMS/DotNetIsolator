@@ -28,8 +28,11 @@ public class IsolatedRuntime : IDisposable
     private readonly Func<int, int> _instantiateDotNetClass;
     private readonly Func<int, int, int, int> _lookupDotNetMethod;
     private readonly Func<int, int, int, int> _deserializeAsDotNetObject;
+    private readonly Func<int, int, int> _reflectClass;
+    private readonly Func<int, int, int> _reflectMethod;
     private readonly Action<int> _invokeDotNetMethod;
     private readonly Action<int> _releaseObject;
+
     private readonly ConcurrentDictionary<(string AssemblyName, string? Namespace, string TypeName), IsolatedClass> _classLookupCache = new();
     private readonly ConcurrentDictionary<(int MonoClass, string MethodName, int NumArgs), IsolatedMethod> _methodLookupCache = new();
     private readonly ShadowStack _shadowStack;
@@ -62,6 +65,10 @@ public class IsolatedRuntime : IDisposable
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_lookup_method'");
         _deserializeAsDotNetObject = _instance.GetFunction<int, int, int, int>("dotnetisolator_deserialize_object")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_deserialize_object'");
+        _reflectClass = _instance.GetFunction<int, int, int>("dotnetisolator_reflect_class")
+            ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_reflect_class'");
+        _reflectMethod = _instance.GetFunction<int, int, int>("dotnetisolator_reflect_method")
+            ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_reflect_method'");
         _invokeDotNetMethod = _instance.GetAction<int>("dotnetisolator_invoke_method")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_invoke_method'");
         _releaseObject = _instance.GetAction<int>("dotnetisolator_release_object")
@@ -278,6 +285,20 @@ public class IsolatedRuntime : IDisposable
         {
             _free(wasmPtr);
         }
+    }
+
+    internal IsolatedObject GetReflectionClass(int monoClassPtr)
+    {
+        using var resultClassPtrBuf = _shadowStack.Push<int>();
+        var handle = _reflectClass(monoClassPtr, resultClassPtrBuf.Address);
+        return new IsolatedObject(this, handle, resultClassPtrBuf.Value);
+    }
+
+    internal IsolatedObject GetReflectionMethod(int monoMethodPtr)
+    {
+        using var resultClassPtrBuf = _shadowStack.Push<int>();
+        var handle = _reflectMethod(monoMethodPtr, resultClassPtrBuf.Address);
+        return new IsolatedObject(this, handle, resultClassPtrBuf.Value);
     }
 
     internal string? ReadDotNetString(int ptr)

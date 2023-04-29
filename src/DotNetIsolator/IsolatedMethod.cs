@@ -7,11 +7,8 @@ public class IsolatedMethod
     private readonly IsolatedRuntime _runtimeInstance;
     private readonly int _monoMethodPtr;
 
-    public string Name { get; }
-
-    internal IsolatedMethod(IsolatedRuntime runtimeInstance, string name, int monoMethodPtr)
+    internal IsolatedMethod(IsolatedRuntime runtimeInstance, int monoMethodPtr)
     {
-        Name = name;
         _runtimeInstance = runtimeInstance;
         _monoMethodPtr = monoMethodPtr;
     }

@@ -230,7 +230,7 @@ public class IsolatedRuntime : IDisposable
                     throw new IsolatedException(errorString);
                 }
 
-                return new IsolatedMethod(this, info.MethodName, methodPtr);
+                return new IsolatedMethod(this, methodPtr);
             }
             finally
             {

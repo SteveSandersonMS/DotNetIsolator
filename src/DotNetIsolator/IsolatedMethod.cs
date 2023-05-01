@@ -4,57 +4,48 @@ namespace DotNetIsolator;
 
 public class IsolatedMethod : IsolatedMember, IEquatable<IsolatedMethod>
 {
-    private readonly int _monoMethodPtr;
-
-    internal IsolatedMethod(IsolatedRuntime runtimeInstance, int monoMethodPtr) : base(runtimeInstance)
+    internal IsolatedMethod(IsolatedRuntime runtimeInstance, int monoMethodPtr) : base(runtimeInstance, monoMethodPtr)
     {
-        _monoMethodPtr = monoMethodPtr;
+
     }
 
     public bool Equals(IsolatedMethod other)
     {
-        return
-            _runtimeInstance == other._runtimeInstance &&
-            _monoMethodPtr == other._monoMethodPtr;
+        return base.Equals(other);
     }
 
-    public override bool Equals(object obj)
+    public override bool Equals(IsolatedMember other)
     {
-        return obj is IsolatedMethod method && Equals(method);
-    }
-
-    public override int GetHashCode()
-    {
-        return HashCode.Combine(_runtimeInstance, _monoMethodPtr);
+        return other is IsolatedMethod && base.Equals(other);
     }
 
     public IsolatedMethod? MakeGenericMethod(params IsolatedClass[] genericArguments)
     {
         if(genericArguments.Length == 0)
         {
-            return _runtimeInstance.MakeGenericMethod(_monoMethodPtr, Array.Empty<int>());
+            return Runtime.MakeGenericMethod(_monoPtr, Array.Empty<int>());
         }
         Span<int> argsPtr = stackalloc int[genericArguments.Length];
         for(int i = 0; i < genericArguments.Length; i++)
         {
             var arg = genericArguments[i];
-            if(arg._runtimeInstance != _runtimeInstance)
+            if(arg.Runtime != Runtime)
             {
                 throw new ArgumentException("Generic arguments must all come from the same runtime.", nameof(genericArguments));
             }
-            argsPtr[i] = arg._monoClassPtr;
+            argsPtr[i] = arg._monoPtr;
         }
-        return _runtimeInstance.MakeGenericMethod(_monoMethodPtr, argsPtr);
+        return Runtime.MakeGenericMethod(_monoPtr, argsPtr);
     }
 
     private int Serialize<T>(T value, IsolatedAllocator allocator)
     {
-        if (value is IIsolatedGCHandle handle && handle.GetGCHandle(_runtimeInstance) is int gcHandle)
+        if (value is IIsolatedGCHandle handle && handle.GetGCHandle(Runtime) is int gcHandle)
         {
             // Special size 0 case just with handle
-            var memory = _runtimeInstance.Alloc(2 * sizeof(int));
-            _runtimeInstance.WriteInt32(memory, 0);
-            _runtimeInstance.WriteInt32(memory + sizeof(int), gcHandle);
+            var memory = Runtime.Alloc(2 * sizeof(int));
+            Runtime.WriteInt32(memory, 0);
+            Runtime.WriteInt32(memory + sizeof(int), gcHandle);
             return memory;
         }
         // We might also want to special-case some basic known parameter types and skip MessagePack
@@ -65,13 +56,13 @@ public class IsolatedMethod : IsolatedMember, IEquatable<IsolatedMethod>
 
     protected override IsolatedObject GetReflectionObject()
     {
-        return _runtimeInstance.GetReflectionMethod(_monoMethodPtr);
+        return Runtime.GetReflectionMethod(_monoPtr);
     }
 
     #region Invoke overloads
     private TRes Invoke<TRes>(IsolatedObject? instance, Span<int> argAddresses)
     {
-        return _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, argAddresses);
+        return Runtime.InvokeMethod<TRes>(_monoPtr, instance, argAddresses);
     }
 
     private TRes Invoke<T0, TRes>(IsolatedObject? instance, T0 param0, Span<int> argAddresses, IsolatedAllocator allocator)
@@ -80,11 +71,11 @@ public class IsolatedMethod : IsolatedMember, IEquatable<IsolatedMethod>
 
         try
         {
-            return _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, argAddresses);
+            return Runtime.InvokeMethod<TRes>(_monoPtr, instance, argAddresses);
         }
         finally
         {
-            _runtimeInstance.Free(argAddresses[0]);
+            Runtime.Free(argAddresses[0]);
         }
     }
 
@@ -98,7 +89,7 @@ public class IsolatedMethod : IsolatedMember, IEquatable<IsolatedMethod>
         }
         finally
         {
-            _runtimeInstance.Free(argAddresses[1]);
+            Runtime.Free(argAddresses[1]);
         }
     }
 
@@ -112,7 +103,7 @@ public class IsolatedMethod : IsolatedMember, IEquatable<IsolatedMethod>
         }
         finally
         {
-            _runtimeInstance.Free(argAddresses[2]);
+            Runtime.Free(argAddresses[2]);
         }
     }
 
@@ -126,7 +117,7 @@ public class IsolatedMethod : IsolatedMember, IEquatable<IsolatedMethod>
         }
         finally
         {
-            _runtimeInstance.Free(argAddresses[3]);
+            Runtime.Free(argAddresses[3]);
         }
     }
 
@@ -140,47 +131,47 @@ public class IsolatedMethod : IsolatedMember, IEquatable<IsolatedMethod>
         }
         finally
         {
-            _runtimeInstance.Free(argAddresses[4]);
+            Runtime.Free(argAddresses[4]);
         }
     }
 
     public TRes Invoke<TRes>(IsolatedObject? instance)
     {
-        return _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, ReadOnlySpan<int>.Empty);
+        return Runtime.InvokeMethod<TRes>(_monoPtr, instance, ReadOnlySpan<int>.Empty);
     }
 
     public TRes Invoke<T0, TRes>(IsolatedObject? instance, T0 param0)
     {
         Span<int> argAddresses = stackalloc int[1];
-        using var allocator = _runtimeInstance.GetAllocator();
+        using var allocator = Runtime.GetAllocator();
         return Invoke<T0, TRes>(instance, param0, argAddresses, allocator);
     }
 
     public TRes Invoke<T0, T1, TRes>(IsolatedObject? instance, T0 param0, T1 param1)
     {
         Span<int> argAddresses = stackalloc int[2];
-        using var allocator = _runtimeInstance.GetAllocator();
+        using var allocator = Runtime.GetAllocator();
         return Invoke<T0, T1, TRes>(instance, param0, param1, argAddresses, allocator);
     }
 
     public TRes Invoke<T0, T1, T2, TRes>(IsolatedObject? instance, T0 param0, T1 param1, T2 param2)
     {
         Span<int> argAddresses = stackalloc int[3];
-        using var allocator = _runtimeInstance.GetAllocator();
+        using var allocator = Runtime.GetAllocator();
         return Invoke<T0, T1, T2, TRes>(instance, param0, param1, param2, argAddresses, allocator);
     }
 
     public TRes Invoke<T0, T1, T2, T3, TRes>(IsolatedObject? instance, T0 param0, T1 param1, T2 param2, T3 param3)
     {
         Span<int> argAddresses = stackalloc int[4];
-        using var allocator = _runtimeInstance.GetAllocator();
+        using var allocator = Runtime.GetAllocator();
         return Invoke<T0, T1, T2, T3, TRes>(instance, param0, param1, param2, param3, argAddresses, allocator);
     }
 
     public TRes Invoke<T0, T1, T2, T3, T4, TRes>(IsolatedObject? instance, T0 param0, T1 param1, T2 param2, T3 param3, T4 param4)
     {
         Span<int> argAddresses = stackalloc int[5];
-        using var allocator = _runtimeInstance.GetAllocator();
+        using var allocator = Runtime.GetAllocator();
         return Invoke<T0, T1, T2, T3, T4, TRes>(instance, param0, param1, param2, param3, param4, argAddresses, allocator);
     }
 
@@ -192,7 +183,7 @@ public class IsolatedMethod : IsolatedMember, IEquatable<IsolatedMethod>
     public TRes Invoke<TRes>(IsolatedObject? instance, Span<object> args)
     {
         Span<int> argAddresses = stackalloc int[args.Length];
-        using var allocator = _runtimeInstance.GetAllocator();
+        using var allocator = Runtime.GetAllocator();
         int i = 0;
         try
         {
@@ -200,13 +191,13 @@ public class IsolatedMethod : IsolatedMember, IEquatable<IsolatedMethod>
             {
                 argAddresses[i] = Serialize(args[i], allocator);
             }
-            return _runtimeInstance.InvokeMethod<TRes>(_monoMethodPtr, instance, argAddresses);
+            return Runtime.InvokeMethod<TRes>(_monoPtr, instance, argAddresses);
         }
         finally
         {
             for (int j = 0; j < i; j++)
             {
-                _runtimeInstance.Free(argAddresses[j]);
+                Runtime.Free(argAddresses[j]);
             }
         }
     }

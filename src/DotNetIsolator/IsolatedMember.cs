@@ -1,27 +1,46 @@
 ﻿namespace DotNetIsolator;
 
-public abstract class IsolatedMember : IDisposable, IIsolatedGCHandle
+public abstract class IsolatedMember : IDisposable, IEquatable<IsolatedMember>, IIsolatedGCHandle
 {
-    protected internal readonly IsolatedRuntime _runtimeInstance;
+    public IsolatedRuntime Runtime { get; }
+
+    internal readonly int _monoPtr;
+
+    public nint Handle => _monoPtr;
+
     IsolatedObject? reflectionObject;
 
     public IsolatedObject ReflectionObject => reflectionObject ??= GetReflectionObject();
 
-    public IsolatedMember(IsolatedRuntime runtimeInstance)
+    public IsolatedMember(IsolatedRuntime runtimeInstance, int monoPtr)
     {
-        _runtimeInstance = runtimeInstance;
+        Runtime = runtimeInstance;
+        _monoPtr = monoPtr;
     }
 
     protected abstract IsolatedObject GetReflectionObject();
+
+    public virtual bool Equals(IsolatedMember other)
+    {
+        return
+            Runtime == other.Runtime &&
+            Handle == other.Handle;
+    }
+
+    public override bool Equals(object obj)
+    {
+        return obj is IsolatedMember method && Equals(method);
+    }
+
+    public override int GetHashCode()
+    {
+        return HashCode.Combine(Runtime, Handle);
+    }
 
     public override string ToString()
     {
         return ReflectionObject.ToString();
     }
-
-    public abstract override bool Equals(object obj);
-
-    public abstract override int GetHashCode();
 
     protected virtual void Dispose(bool disposing)
     {

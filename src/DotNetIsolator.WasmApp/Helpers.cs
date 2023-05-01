@@ -3,7 +3,7 @@ using MessagePack.Resolvers;
 
 namespace DotNetIsolator.WasmApp;
 
-public static class Serialization
+public static class Helpers
 {
     public static unsafe object? Deserialize<T>(byte* value, int valueLength)
     {

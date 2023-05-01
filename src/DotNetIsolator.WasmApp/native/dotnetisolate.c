@@ -22,6 +22,8 @@ typedef struct RunnerInvocation {
 #define RESULT_TYPE_SERIALIZE 0
 #define RESULT_TYPE_HANDLE 1
 
+#define HELPERS_CLASS "DotNetIsolator.WasmApp","DotNetIsolator.WasmApp","Helpers"
+
 __attribute__((export_name("dotnetisolator_realloc")))
 void* dotnetisolator_realloc(void *ptr, size_t size) {
 	return realloc(ptr, size);
@@ -115,7 +117,7 @@ void* deserialize_param(void* length_prefixed_buffer, MonoType* param_type, Mono
 
 	if (*(int*)length_prefixed_buffer) {
 		if (deserialize_param_dotnet_method == 0) {
-			deserialize_param_dotnet_method = lookup_dotnet_method("DotNetIsolator.WasmApp", "DotNetIsolator.WasmApp", "Serialization", "Deserialize", 2);
+			deserialize_param_dotnet_method = lookup_dotnet_method(HELPERS_CLASS, "Deserialize", 2);
 		}
 
 		if (!param_type) {
@@ -179,7 +181,7 @@ void serialize_return_value(MonoObject* value, RunnerInvocation* invocation, Mon
 	}
 
 	if (serialize_return_value_dotnet_method == 0) {
-		serialize_return_value_dotnet_method = lookup_dotnet_method("DotNetIsolator.WasmApp", "DotNetIsolator.WasmApp", "Serialization", "Serialize", -1);
+		serialize_return_value_dotnet_method = lookup_dotnet_method(HELPERS_CLASS, "Serialize", -1);
 	}
 
 	void* method_params[] = { value };

@@ -3,6 +3,7 @@ using MessagePack;
 using MessagePack.Resolvers;
 using System.Buffers;
 using System.Collections.Concurrent;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -32,6 +33,7 @@ public class IsolatedRuntime : IDisposable
     private readonly Func<int, int, int, int> _deserializeAsDotNetObject;
     private readonly Func<int, int, int> _reflectClass;
     private readonly Func<int, int, int> _reflectMethod;
+    private readonly Action<int, int, int, int> _unreflectMember;
     private readonly Action<int> _invokeDotNetMethod;
     private readonly Action<int> _releaseObject;
     private readonly Func<int, int> _getObjectHash;
@@ -82,6 +84,8 @@ public class IsolatedRuntime : IDisposable
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_reflect_class'");
         _reflectMethod = _instance.GetFunction<int, int, int>("dotnetisolator_reflect_method")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_reflect_method'");
+        _unreflectMember = _instance.GetAction<int, int, int, int>("dotnetisolator_unreflect_member")
+            ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_unreflect_member'");
         _invokeDotNetMethod = _instance.GetAction<int>("dotnetisolator_invoke_method")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_invoke_method'");
         _releaseObject = _instance.GetAction<int>("dotnetisolator_release_object")
@@ -382,6 +386,32 @@ public class IsolatedRuntime : IDisposable
         using var resultClassPtrBuf = _shadowStack.Push<int>();
         var handle = _reflectMethod(monoMethodPtr, resultClassPtrBuf.Address);
         return new IsolatedObject(this, handle, resultClassPtrBuf.Value);
+    }
+
+    internal IsolatedMember GetReflectedMember(int gcHandle)
+    {
+        using var resultMemberType = _shadowStack.Push<MemberTypes>();
+        using var resultMemberPtr = _shadowStack.Push<int>();
+        using var errorMessageBuf = _shadowStack.Push<int>();
+        _unreflectMember(gcHandle, resultMemberType.Address, resultMemberPtr.Address, errorMessageBuf.Address);
+
+        if (errorMessageBuf.Value != 0)
+        {
+            var errorMessage = ReadDotNetString(errorMessageBuf.Value);
+            throw new IsolatedException(errorMessage);
+        }
+
+        switch (resultMemberType.Value)
+        {
+            case MemberTypes.TypeInfo:
+            case MemberTypes.NestedType:
+                return new IsolatedClass(this, resultMemberPtr.Value);
+            case MemberTypes.Method:
+            case MemberTypes.Constructor:
+                return new IsolatedMethod(this, resultMemberPtr.Value);
+            default:
+                throw new NotSupportedException();
+        }
     }
 
     internal string? ReadDotNetString(int ptr)

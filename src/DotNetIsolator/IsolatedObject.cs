@@ -18,6 +18,11 @@ public class IsolatedObject : IDisposable, IIsolatedGCHandle, IEquatable<Isolate
 
     internal int GuestGCHandle { get; private set; }
 
+    public static explicit operator IsolatedMember(IsolatedObject obj)
+    {
+        return obj._runtimeInstance.GetReflectedMember(obj.GuestGCHandle);
+    }
+
     public override string ToString()
     {
         return _runtimeInstance.ToStringMethod.Invoke<string>(this);

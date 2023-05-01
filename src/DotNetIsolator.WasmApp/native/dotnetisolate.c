@@ -299,6 +299,33 @@ MonoGCHandle dotnetisolator_reflect_method(MonoMethod* method, MonoClass** resul
 	return (MonoGCHandle)mono_gchandle_new(result, /* pinned */ 0);
 }
 
+MonoMethod* get_member_handle_dotnet_method;
+
+__attribute__((export_name("dotnetisolator_unreflect_member")))
+void dotnetisolator_unreflect_member(MonoGCHandle gcHandle, int* type, void** ptr, MonoString** exception_msg) {
+	if (get_member_handle_dotnet_method == 0) {
+		get_member_handle_dotnet_method = lookup_dotnet_method(HELPERS_CLASS, "GetMemberHandle", 3);
+	}
+
+	void* method_params[] = { 
+		mono_gchandle_get_target((uint32_t)gcHandle),
+		type,
+		ptr
+	};
+	
+	MonoObject* exc;
+	MonoObject* result = mono_wasm_invoke_method(get_member_handle_dotnet_method, NULL, method_params, &exc);
+
+	if (exc) {
+		*exception_msg = (MonoString*)result;
+		return;
+	}
+
+	if (*type == 32 || *type == 128) { // TypeInfo, NestedType
+		*ptr = mono_class_from_mono_type(*ptr);
+	}
+}
+
 __attribute__((export_name("dotnetisolator_get_object_class")))
 MonoClass* dotnetisolator_get_object_class() {
 	return mono_get_object_class();

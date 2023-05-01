@@ -18,6 +18,11 @@ public abstract class IsolatedMember : IDisposable, IEquatable<IsolatedMember>, 
         _monoPtr = monoPtr;
     }
 
+    public static explicit operator IsolatedObject(IsolatedMember member)
+    {
+        return member.GetReflectionObject();
+    }
+
     protected abstract IsolatedObject GetReflectionObject();
 
     public virtual bool Equals(IsolatedMember other)

@@ -9,6 +9,11 @@ public class IsolatedException : Exception
 
     }
 
+    public IsolatedException(string? message) : base(message)
+    {
+
+    }
+
     public IsolatedException(string? message, IsolatedObject innerExceptionObject) : base(message, DeserializeException(innerExceptionObject))
     {
         InnerExceptionObject = innerExceptionObject;

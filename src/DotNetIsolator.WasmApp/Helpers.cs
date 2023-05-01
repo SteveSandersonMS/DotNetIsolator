@@ -1,5 +1,6 @@
 ﻿using MessagePack;
 using MessagePack.Resolvers;
+using System.Reflection;
 
 namespace DotNetIsolator.WasmApp;
 
@@ -28,5 +29,22 @@ public static class Helpers
         // TODO: Should we really be pinning the result value here, or is it safe to return
         // a MonoObject* to unmanaged code and then use mono_gchandle_new(..., true) from there?
         return MessagePackSerializer.Serialize(value, ContractlessStandardResolverAllowPrivate.Options);
+    }
+
+    public static void GetMemberHandle(MemberInfo member, ref MemberTypes memberType, ref IntPtr handle)
+    {
+        memberType = member.MemberType;
+        switch (member)
+        {
+            case Type type:
+                handle = type.TypeHandle.Value;
+                break;
+            case MethodBase method:
+                handle = method.MethodHandle.Value;
+                break;
+            case FieldInfo field:
+                handle = field.FieldHandle.Value;
+                break;
+        }
     }
 }

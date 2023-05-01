@@ -2,12 +2,10 @@
 
 public class IsolatedClass : IsolatedMember, IEquatable<IsolatedClass>
 {
-    private readonly IsolatedRuntime _runtimeInstance;
-    private readonly int _monoClassPtr;
+    internal readonly int _monoClassPtr;
 
-    internal IsolatedClass(IsolatedRuntime runtimeInstance, int monoClassPtr)
+    internal IsolatedClass(IsolatedRuntime runtimeInstance, int monoClassPtr) : base(runtimeInstance)
     {
-        _runtimeInstance = runtimeInstance;
         _monoClassPtr = monoClassPtr;
     }
 
@@ -41,6 +39,25 @@ public class IsolatedClass : IsolatedMember, IEquatable<IsolatedClass>
     public IsolatedMethod? GetMethod(string methodDesc, bool matchNamespace)
     {
         return _runtimeInstance.GetMethod(_monoClassPtr, methodDesc, matchNamespace);
+    }
+
+    public IsolatedClass? MakeGenericClass(params IsolatedClass[] genericArguments)
+    {
+        if (genericArguments.Length == 0)
+        {
+            return _runtimeInstance.MakeGenericClass(_monoClassPtr, Array.Empty<int>());
+        }
+        Span<int> argsPtr = stackalloc int[genericArguments.Length];
+        for (int i = 0; i < genericArguments.Length; i++)
+        {
+            var arg = genericArguments[i];
+            if (arg._runtimeInstance != _runtimeInstance)
+            {
+                throw new ArgumentException("Generic arguments must all come from the same runtime.", nameof(genericArguments));
+            }
+            argsPtr[i] = arg._monoClassPtr;
+        }
+        return _runtimeInstance.MakeGenericClass(_monoClassPtr, argsPtr);
     }
 
     protected override IsolatedObject GetReflectionObject()

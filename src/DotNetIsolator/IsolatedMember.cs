@@ -2,9 +2,15 @@
 
 public abstract class IsolatedMember : IDisposable, IIsolatedGCHandle
 {
+    protected internal readonly IsolatedRuntime _runtimeInstance;
     IsolatedObject? reflectionObject;
 
     public IsolatedObject ReflectionObject => reflectionObject ??= GetReflectionObject();
+
+    public IsolatedMember(IsolatedRuntime runtimeInstance)
+    {
+        _runtimeInstance = runtimeInstance;
+    }
 
     protected abstract IsolatedObject GetReflectionObject();
 

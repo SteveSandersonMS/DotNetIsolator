@@ -35,6 +35,8 @@ public class IsolatedRuntime : IDisposable
     private readonly Action<int> _invokeDotNetMethod;
     private readonly Action<int> _releaseObject;
     private readonly Func<int, int> _getObjectHash;
+    private readonly Func<int, int, int, int> _makeGenericClass;
+    private readonly Func<int, int, int, int> _makeGenericMethod;
 
     private readonly ConcurrentDictionary<(string AssemblyName, string? Namespace, string TypeName), IsolatedClass> _classLookupCache = new();
     private readonly ConcurrentDictionary<(int MonoClass, string MethodName, int NumArgs), IsolatedMethod> _methodLookupCache = new();
@@ -86,6 +88,10 @@ public class IsolatedRuntime : IDisposable
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_release_object'");
         _getObjectHash = _instance.GetFunction<int, int>("dotnetisolator_get_object_hash")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_get_object_hash'");
+        _makeGenericClass = _instance.GetFunction<int, int, int, int>("dotnetisolator_make_generic_class")
+            ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_make_generic_class'");
+        _makeGenericMethod = _instance.GetFunction<int, int, int, int>("dotnetisolator_make_generic_method")
+            ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_make_generic_method'");
 
         _shadowStack = new ShadowStack(_memory, _malloc, _free);
 
@@ -392,6 +398,28 @@ public class IsolatedRuntime : IDisposable
         var stringUtf16Bytes = _memory.GetSpan<byte>(ptr + 12, stringLength * 2);
         var stringChars = MemoryMarshal.Cast<byte, char>(stringUtf16Bytes);
         return new string(stringChars);
+    }
+
+    internal IsolatedClass? MakeGenericClass(int monoClassPtr, ReadOnlySpan<int> genericArguments)
+    {
+        int args = CopyValue<int>(genericArguments, false);
+        var resultPtr = _makeGenericClass(monoClassPtr, genericArguments.Length, args);
+        if (resultPtr == 0)
+        {
+            return null;
+        }
+        return new IsolatedClass(this, resultPtr);
+    }
+
+    internal IsolatedMethod? MakeGenericMethod(int monoMethodPtr, ReadOnlySpan<int> genericArguments)
+    {
+        int args = CopyValue<int>(genericArguments, false);
+        var resultPtr = _makeGenericMethod(monoMethodPtr, genericArguments.Length, args);
+        if (resultPtr == 0)
+        {
+            return null;
+        }
+        return new IsolatedMethod(this, resultPtr);
     }
 
     internal void ReleaseGCHandle(int guestGCHandle)

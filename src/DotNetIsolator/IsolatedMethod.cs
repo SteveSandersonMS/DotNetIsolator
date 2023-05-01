@@ -4,12 +4,10 @@ namespace DotNetIsolator;
 
 public class IsolatedMethod : IsolatedMember, IEquatable<IsolatedMethod>
 {
-    private readonly IsolatedRuntime _runtimeInstance;
     private readonly int _monoMethodPtr;
 
-    internal IsolatedMethod(IsolatedRuntime runtimeInstance, int monoMethodPtr)
+    internal IsolatedMethod(IsolatedRuntime runtimeInstance, int monoMethodPtr) : base(runtimeInstance)
     {
-        _runtimeInstance = runtimeInstance;
         _monoMethodPtr = monoMethodPtr;
     }
 
@@ -28,6 +26,25 @@ public class IsolatedMethod : IsolatedMember, IEquatable<IsolatedMethod>
     public override int GetHashCode()
     {
         return HashCode.Combine(_runtimeInstance, _monoMethodPtr);
+    }
+
+    public IsolatedMethod? MakeGenericMethod(params IsolatedClass[] genericArguments)
+    {
+        if(genericArguments.Length == 0)
+        {
+            return _runtimeInstance.MakeGenericMethod(_monoMethodPtr, Array.Empty<int>());
+        }
+        Span<int> argsPtr = stackalloc int[genericArguments.Length];
+        for(int i = 0; i < genericArguments.Length; i++)
+        {
+            var arg = genericArguments[i];
+            if(arg._runtimeInstance != _runtimeInstance)
+            {
+                throw new ArgumentException("Generic arguments must all come from the same runtime.", nameof(genericArguments));
+            }
+            argsPtr[i] = arg._monoClassPtr;
+        }
+        return _runtimeInstance.MakeGenericMethod(_monoMethodPtr, argsPtr);
     }
 
     private int Serialize<T>(T value, IsolatedAllocator allocator)

@@ -307,3 +307,35 @@ int dotnetisolator_get_object_hash(MonoGCHandle gcHandle) {
 	MonoObject* obj = mono_gchandle_get_target((uint32_t)gcHandle);
 	return mono_object_hash(obj);
 }
+
+__attribute__((export_name("dotnetisolator_make_generic_class")))
+MonoClass* dotnetisolator_make_generic_type(MonoClass* class, int num_classes, void** classes) {
+	for (int i = 0; i < num_classes; i++) {
+		classes[i] = mono_class_get_type((MonoClass*)classes[i]);
+	}
+	MonoGenericInst* inst = mono_metadata_get_generic_inst(num_classes, (MonoType**)classes);
+	free(classes);
+	MonoGenericInst* context[2] = {
+		inst,
+		NULL
+	};
+	MonoType* result = mono_class_inflate_generic_type(mono_class_get_type(class), (MonoGenericContext*)context);
+	if (!result) {
+		return NULL;
+	}
+	return mono_class_from_mono_type(result);
+}
+
+__attribute__((export_name("dotnetisolator_make_generic_method")))
+MonoMethod* dotnetisolator_make_generic_method(MonoMethod* method, int num_classes, void** classes) {
+	for (int i = 0; i < num_classes; i++) {
+		classes[i] = mono_class_get_type((MonoClass*)classes[i]);
+	}
+	MonoGenericInst* inst = mono_metadata_get_generic_inst(num_classes, (MonoType**)classes);
+	free(classes);
+	MonoGenericInst* context[2] = {
+		NULL,
+		inst
+	};
+	return mono_class_inflate_generic_method(method, (MonoGenericContext*)context);
+}

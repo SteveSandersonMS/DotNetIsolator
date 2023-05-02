@@ -197,6 +197,13 @@ void serialize_return_value(MonoObject* value, RunnerInvocation* invocation, Mon
 	invocation->result_handle = (MonoGCHandle)mono_gchandle_new(byte_array, /* pinned */ 1);
 }
 
+MonoString* empty_string_on_null(MonoString* str) {
+	if (!str) {
+		return mono_string_empty(mono_get_root_domain());
+	}
+	return str;
+}
+
 __attribute__((export_name("dotnetisolator_invoke_method")))
 void dotnetisolator_invoke_method(RunnerInvocation* invocation) {
 	MonoObject* exc = NULL;
@@ -262,7 +269,7 @@ void dotnetisolator_invoke_method(RunnerInvocation* invocation) {
 	if (exc) {
 		// Return a string representation of the error
 		invocation->result_type = RESULT_TYPE_HANDLE;
-		invocation->result_exception = exc_msg;
+		invocation->result_exception = empty_string_on_null(exc_msg);
 		serialize_return_value(exc, invocation, &exc, &exc_msg);
 	}
 }

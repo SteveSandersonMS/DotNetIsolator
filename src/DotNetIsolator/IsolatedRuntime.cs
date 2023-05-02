@@ -339,7 +339,7 @@ public class IsolatedRuntime : IDisposable
             if (invocation.ResultException != 0)
             {
                 var exceptionString = ReadDotNetString(invocation.ResultException);
-                throw new IsolatedException(exceptionString, new IsolatedObject(this, invocation.ResultGCHandle, invocation.ResultPtr));
+                throw new IsolatedException(exceptionString == "" ? null : exceptionString, new IsolatedObject(this, invocation.ResultGCHandle, invocation.ResultPtr));
             }
 
             if (invocation.ResultPtr == 0)

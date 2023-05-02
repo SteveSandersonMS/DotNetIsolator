@@ -44,6 +44,7 @@ public class IsolatedRuntime : MemoryManager<byte>, IDisposable
     private readonly ConcurrentDictionary<(int MonoClass, string MethodName, int NumArgs), IsolatedMethod> _methodLookupCache = new();
     private readonly ConcurrentDictionary<(string AssemblyName, string MethodDesc, bool MatchNamespace), IsolatedMethod> _globalMethodLookupCache = new();
     private readonly ConcurrentDictionary<(int MonoClass, string MethodDesc, bool MatchNamespace), IsolatedMethod> _methodDescLookupCache = new();
+    private readonly ConditionalWeakTable<object, IsolatedObject> _delegateTargetCache = new();
     private readonly ShadowStack _shadowStack;
     private readonly Dictionary<string, Delegate> _registeredCallbacks = new();
     private bool _isDisposed;
@@ -503,30 +504,50 @@ public class IsolatedRuntime : MemoryManager<byte>, IDisposable
         return _memory.GetSpan(ptr, size);
     }
 
-    public void Invoke(Action value)
+    public void Invoke(Action action)
+    {
+        using var target = GetDelegateTarget(action);
+        LookupDelegateMethod(action).InvokeVoid(target);
+    }
+
+    public void Invoke<T0>(Action<T0> action, T0 param0)
+    {
+        using var target = GetDelegateTarget(action);
+        LookupDelegateMethod(action).InvokeVoid(target, param0);
+    }
+
+    public TRes Invoke<TRes>(Func<TRes> func)
+    {
+        using var target = GetDelegateTarget(func);
+        return LookupDelegateMethod(func).Invoke<TRes>(target);
+    }
+
+    public TRes Invoke<T0, TRes>(Func<TRes> func, T0 param0)
+    {
+        using var target = GetDelegateTarget(func);
+        return LookupDelegateMethod(func).Invoke<T0, TRes>(target, param0);
+    }
+
+    private IsolatedObject? GetDelegateTarget(Delegate @delegate)
     {
         // TODO: Find a way of not serializing value.Target if it doesn't contain any fields we care about serializing
         // This makes invoking static lambdas vastly faster. It's not clear to me why the target is nonnull in these cases anyway.
-        using var targetInGuest = value.Target is null ? null : CopyObject(value.Target);
-        LookupDelegateMethod(value).InvokeVoid(targetInGuest);
+        var target = @delegate.Target;
+        if (target == null)
+        {
+            return null;
+        }
+        return _delegateTargetCache.GetValue(target, CopyObject<object>);
     }
-
-    public TRes Invoke<TRes>(Func<TRes> value)
-    {
-        // TODO: Find a way of not serializing value.Target if it doesn't contain any fields we care about serializing
-        // This makes invoking static lambdas vastly faster. It's not clear to me why the target is nonnull in these cases anyway.
-        using var targetInGuest = value.Target is null ? null : CopyObject(value.Target);
-        return LookupDelegateMethod(value).Invoke<TRes>(targetInGuest);
-    }
-
-    public void RegisterCallback(string name, Delegate callback)
-        => _registeredCallbacks.Add(name, callback);
 
     private IsolatedMethod LookupDelegateMethod(Delegate @delegate)
     {
         return this.GetMethod(@delegate.Method)
             ?? throw new ArgumentException($"Cannot find closure method {@delegate.Method.Name}.");
     }
+
+    public void RegisterCallback(string name, Delegate callback)
+        => _registeredCallbacks.Add(name, callback);
 
     internal int AcceptCallFromGuest(int invocationPtr, int invocationLength, int resultPtrPtr, int resultLengthPtr)
     {

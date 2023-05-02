@@ -410,7 +410,7 @@ public class IsolatedRuntime : IDisposable
             case MemberTypes.Constructor:
                 return new IsolatedMethod(this, resultMemberPtr.Value);
             default:
-                throw new NotSupportedException();
+                throw new ArgumentException("Handle does not point to a valid reflection object.", nameof(gcHandle));
         }
     }
 

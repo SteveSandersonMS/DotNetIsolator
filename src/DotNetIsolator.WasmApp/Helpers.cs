@@ -31,9 +31,9 @@ public static class Helpers
         return MessagePackSerializer.Serialize(value, ContractlessStandardResolverAllowPrivate.Options);
     }
 
-    public static void GetMemberHandle(MemberInfo member, ref MemberTypes memberType, ref IntPtr handle)
+    public static void GetMemberHandle(object member, ref MemberTypes memberType, ref IntPtr handle)
     {
-        memberType = member.MemberType;
+        memberType = (member as MemberInfo)?.MemberType ?? 0;
         switch (member)
         {
             case Type type:
@@ -44,6 +44,9 @@ public static class Helpers
                 break;
             case FieldInfo field:
                 handle = field.FieldHandle.Value;
+                break;
+            default:
+                handle = IntPtr.Zero;
                 break;
         }
     }

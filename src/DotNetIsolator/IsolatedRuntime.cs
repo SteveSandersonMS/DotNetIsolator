@@ -522,12 +522,10 @@ public class IsolatedRuntime : MemoryManager<byte>, IDisposable
     public void RegisterCallback(string name, Delegate callback)
         => _registeredCallbacks.Add(name, callback);
 
-    private IsolatedMethod LookupDelegateMethod(MulticastDelegate @delegate)
+    private IsolatedMethod LookupDelegateMethod(Delegate @delegate)
     {
-        var method = @delegate.Method;
-        var methodType = method.DeclaringType!;
-        var wasmMethod = this.GetMethod(methodType, method.Name, -1);
-        return wasmMethod;
+        return this.GetMethod(@delegate.Method)
+            ?? throw new ArgumentException($"Cannot find closure method {@delegate.Method.Name}.");
     }
 
     internal int AcceptCallFromGuest(int invocationPtr, int invocationLength, int resultPtrPtr, int resultLengthPtr)

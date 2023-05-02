@@ -1,4 +1,6 @@
-﻿namespace DotNetIsolator;
+﻿using System.Reflection;
+
+namespace DotNetIsolator;
 
 public static class IsolatedRuntimeExtensions
 {
@@ -10,6 +12,11 @@ public static class IsolatedRuntimeExtensions
     public static IsolatedClass? GetClass<T>(this IsolatedRuntime runtime)
     {
         return runtime.GetClass(typeof(T));
+    }
+
+    public static IsolatedMethod? GetMethod(this IsolatedRuntime runtime, MethodInfo method)
+    {
+        return runtime.GetClass(method.DeclaringType)?.GetMethod(method.Name, method.GetParameters().Length);
     }
 
     public static IsolatedMethod? GetMethod(this IsolatedRuntime runtime, Type type, string methodName)

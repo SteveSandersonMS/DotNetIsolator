@@ -11,7 +11,7 @@ using Wasmtime;
 
 namespace DotNetIsolator;
 
-public class IsolatedRuntime : IDisposable
+public class IsolatedRuntime : MemoryManager<byte>, IDisposable
 {
     static readonly MessagePackSerializerOptions CallFromGuestResolverOptions =
         MessagePackSerializerOptions.Standard.WithResolver(
@@ -354,17 +354,19 @@ public class IsolatedRuntime : IDisposable
                 }
                 else
                 {
-                    var resultBytes = _memory
-                        .GetSpan(invocation.ResultPtr, invocation.ResultLength)
-                        .ToArray();
+                    var resultBytes = base.CreateMemory(invocation.ResultPtr, invocation.ResultLength);
 
-                    // Note that we don't deserialize using MessagePackSerializer.Typeless because we don't want the guest code
-                    // to be able to make the host instantiate arbitrary types. The host will only instantiate the types statically
-                    // defined by the type graph of TRes.
-                    var result = MessagePackSerializer.Deserialize<TRes>(resultBytes, ContractlessStandardResolverAllowPrivate.Options)!;
-
-                    ReleaseGCHandle(invocation.ResultGCHandle);
-                    return result;
+                    try
+                    {
+                        // Note that we don't deserialize using MessagePackSerializer.Typeless because we don't want the guest code
+                        // to be able to make the host instantiate arbitrary types. The host will only instantiate the types statically
+                        // defined by the type graph of TRes.
+                        return MessagePackSerializer.Deserialize<TRes>(resultBytes, ContractlessStandardResolverAllowPrivate.Options)!;
+                    }
+                    finally
+                    {
+                        ReleaseGCHandle(invocation.ResultGCHandle);
+                    }
                 }
             }
         }
@@ -460,11 +462,15 @@ public class IsolatedRuntime : IDisposable
         }
     }
 
-    public void Dispose()
+
+    protected override void Dispose(bool disposing)
     {
-        _isDisposed = true;
-        _shadowStack.Dispose();
-        _store.Dispose();
+        if (disposing)
+        {
+            _isDisposed = true;
+            _shadowStack.Dispose();
+            _store.Dispose();
+        }
     }
 
     internal int Alloc(int size)
@@ -587,6 +593,21 @@ public class IsolatedRuntime : IDisposable
             _memory.WriteInt32(resultLengthPtr, resultBytes.Length);
             return 0; // Failure
         }
+    }
+
+    public override Span<byte> GetSpan()
+    {
+        return _memory.GetSpan(0, (int)_memory.GetLength());
+    }
+
+    public override MemoryHandle Pin(int elementIndex = 0)
+    {
+        throw new NotSupportedException();
+    }
+
+    public override void Unpin()
+    {
+        throw new NotSupportedException();
     }
 
     [StructLayout(LayoutKind.Sequential)]

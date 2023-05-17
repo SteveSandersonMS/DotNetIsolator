@@ -6,6 +6,11 @@ public static class IsolatedRuntimeExtensions
 {
     public static IsolatedClass? GetClass(this IsolatedRuntime runtime, Type type)
     {
+        if(type.IsGenericType && !type.IsGenericTypeDefinition)
+        {
+            var typeArgs = type.GetGenericArguments().Select(arg => runtime.GetClass(arg)).ToArray();
+            return runtime.GetClass(type.GetGenericTypeDefinition())?.MakeGenericClass(typeArgs!);
+        }
         return runtime.GetClass(type.Assembly.GetName().Name!, type.Namespace, type.DeclaringType?.Name, type.Name);
     }
 
@@ -16,6 +21,11 @@ public static class IsolatedRuntimeExtensions
 
     public static IsolatedMethod? GetMethod(this IsolatedRuntime runtime, MethodInfo method)
     {
+        if(method.IsGenericMethod && !method.IsGenericMethodDefinition)
+        {
+            var typeArgs = method.GetGenericArguments().Select(arg => runtime.GetClass(arg)).ToArray();
+            return runtime.GetMethod(method.GetGenericMethodDefinition())?.MakeGenericMethod(typeArgs!);
+        }
         return runtime.GetClass(method.DeclaringType)?.GetMethod(method.Name, method.GetParameters().Length);
     }
 

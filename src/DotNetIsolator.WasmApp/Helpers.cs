@@ -1,5 +1,6 @@
 ﻿using MessagePack;
 using MessagePack.Resolvers;
+using System.Buffers;
 using System.Reflection;
 
 namespace DotNetIsolator.WasmApp;
@@ -8,19 +9,15 @@ public static class Helpers
 {
     public static unsafe object? Deserialize<T>(byte* value, int valueLength)
     {
-        // Instead of using ToArray (or UnmanagedMemoryStream) you could have a pool of byte[]
-        // buffers on the guest side and have the host serialize directly into their memory, then
-        // there would be no allocations on either side, and this code could work with a Memory<byte>
-        // for whatever region within one of those buffers.
-        var memoryCopy = new Span<byte>(value, valueLength).ToArray();
-        return Deserialize<T>(memoryCopy);
+        var memory = new UnmanagedMemoryManager(value, valueLength).Memory;
+        return Deserialize<T>(memory);
     }
 
     internal static unsafe object? Deserialize<T>(Memory<byte> value)
     {
         var result = MessagePackSerializer.Typeless.Deserialize(value, TypelessContractlessStandardResolver.Options);
 
-        if(result != null && result is not T)
+        if (result != null && result is not T)
         {
             throw new ArgumentException($"Could not deserialize as {typeof(T)}, got {result.GetType()} instead.", nameof(value));
         }
@@ -53,6 +50,43 @@ public static class Helpers
             default:
                 handle = IntPtr.Zero;
                 break;
+        }
+    }
+
+    sealed unsafe class UnmanagedMemoryManager : MemoryManager<byte>
+    {
+        readonly byte* _pointer;
+        readonly int _length;
+
+        public UnmanagedMemoryManager(byte* pointer, int length)
+        {
+            if (length < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(length));
+            }
+            _pointer = pointer;
+            _length = length;
+        }
+
+        public override Span<byte> GetSpan() => new Span<byte>(_pointer, _length);
+
+        public override MemoryHandle Pin(int elementIndex = 0)
+        {
+            if (elementIndex < 0 || elementIndex >= _length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(elementIndex));
+            }
+            return new MemoryHandle(_pointer + elementIndex);
+        }
+
+        public override void Unpin()
+        {
+
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+
         }
     }
 }

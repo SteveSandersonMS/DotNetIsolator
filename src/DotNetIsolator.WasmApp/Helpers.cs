@@ -18,7 +18,12 @@ public static class Helpers
 
     internal static unsafe object? Deserialize<T>(Memory<byte> value)
     {
-        var result = MessagePackSerializer.Deserialize<T>(value, MessagePackSerializer.Typeless.DefaultOptions);
+        var result = MessagePackSerializer.Typeless.Deserialize(value, TypelessContractlessStandardResolver.Options);
+
+        if(result != null && result is not T)
+        {
+            throw new ArgumentException($"Could not deserialize as {typeof(T)}, got {result.GetType()} instead.", nameof(value));
+        }
 
         // Console.WriteLine($"Deserialized value of type {result?.GetType().FullName} with value {result}");
         return result;

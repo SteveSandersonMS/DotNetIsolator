@@ -246,6 +246,13 @@ var hostTime = DotNetIsolatorHost.Invoke<DateTime>("getHostTime");
 
 Note that if you're calling via a lambda, then the guest code is in the same assembly as the host code, so in that case you need the host project to reference the `DotNetIsolator.Guest` package.
 
+## Building this repo from source
+
+You'll need to install [wizer](https://github.com/bytecodealliance/wizer):
+```
+cargo install wizer --all-features
+```
+
 ## Security notes
 
 If you want to rely on this isolation as a critical security boundary in your application, you should bear in mind that:

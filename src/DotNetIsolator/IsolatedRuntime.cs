@@ -97,7 +97,7 @@ public class IsolatedRuntime : MemoryManager<byte>, IDisposable
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_make_generic_class'");
         _makeGenericMethod = _instance.GetFunction<int, int, int, int>("dotnetisolator_make_generic_method")
             ?? throw new InvalidOperationException("Missing required export 'dotnetisolator_make_generic_method'");
-
+        
         _shadowStack = new ShadowStack(_memory, _malloc, _free);
 
         // _start is already called in preinitialization, so we can skip it now
@@ -197,7 +197,7 @@ public class IsolatedRuntime : MemoryManager<byte>, IDisposable
         }
     }
 
-    internal int CopyValue(string? value)
+    internal unsafe int CopyValue(string? value)
     {
         if (value is null)
         {
@@ -208,7 +208,13 @@ public class IsolatedRuntime : MemoryManager<byte>, IDisposable
         var resultPtr = Alloc(valueUtf8Length + 1);
 
         var destinationSpan = _memory.GetSpan(resultPtr, valueUtf8Length);
-        Encoding.UTF8.GetBytes(value, destinationSpan);
+        fixed(char* valuePtr = value)
+        {
+            fixed(byte* destinationPtr = destinationSpan)
+            {
+                Encoding.UTF8.GetBytes(valuePtr, value.Length, destinationPtr, destinationSpan.Length);
+            }
+        }
         _memory.WriteByte(resultPtr + valueUtf8Length, 0); // Null-terminated string
         return resultPtr;
     }
@@ -417,7 +423,7 @@ public class IsolatedRuntime : MemoryManager<byte>, IDisposable
         }
     }
 
-    internal string? ReadDotNetString(int ptr)
+    internal unsafe string? ReadDotNetString(int ptr)
     {
         if (ptr == 0)
         {
@@ -430,7 +436,10 @@ public class IsolatedRuntime : MemoryManager<byte>, IDisposable
         var stringLength = _memory.ReadInt32(ptr + 8); // MonoString has an 8-byte header for the object type
         var stringUtf16Bytes = _memory.GetSpan<byte>(ptr + 12, stringLength * 2);
         var stringChars = MemoryMarshal.Cast<byte, char>(stringUtf16Bytes);
-        return new string(stringChars);
+        fixed(char* stringCharsPtr = stringChars)
+        {
+            return new string(stringCharsPtr, 0, stringChars.Length);
+        }
     }
 
     internal IsolatedClass? MakeGenericClass(int monoClassPtr, ReadOnlySpan<int> genericArguments)

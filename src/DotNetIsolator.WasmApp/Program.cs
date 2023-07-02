@@ -8,5 +8,5 @@ AppContext.SetSwitch("System.Globalization.Invariant", true);
 // For preinit, warm up the serialization code paths
 var captured = new { prop1 = new List<string> { "a", "b" } };
 var lambda = (string a, bool b) => { Console.WriteLine(a + b + captured.prop1.Count + System.Runtime.InteropServices.RuntimeInformation.OSArchitecture); };
-var serialized2 = DotNetIsolator.WasmApp.Serialization.Serialize(lambda.Target!);
-var deserialized2 = DotNetIsolator.WasmApp.Serialization.Deserialize(serialized2);
+var serialized2 = DotNetIsolator.WasmApp.Helpers.Serialize(lambda.Target!);
+var deserialized2 = DotNetIsolator.WasmApp.Helpers.Deserialize<object>(serialized2);

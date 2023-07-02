@@ -46,7 +46,7 @@ public class LambdaInvocationTest : IDisposable
 
     public void Dispose()
     {
-        _runtime.Dispose();
+        ((IDisposable)_runtime).Dispose();
     }
 
     private class Person

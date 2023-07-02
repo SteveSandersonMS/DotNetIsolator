@@ -1,9 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net7.0</TargetFramework>
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<LangVersion>10.0</LangVersion>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
+		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
 		<WasmAppProjectName>DotNetIsolator.WasmApp</WasmAppProjectName>
 		<BundledFilesDir>IsolatedRuntimeHost\</BundledFilesDir>
 		<BundledWasmAssembliesDir>$(BundledFilesDir)WasmAssemblies\</BundledWasmAssembliesDir>
@@ -12,7 +14,9 @@
 
 	<ItemGroup>
 		<PackageReference Include="MessagePack" Version="2.5.103" />
-		<PackageReference Include="Wasmtime" Version="5.0.0" />
+		<PackageReference Include="Wasmtime" Version="9.0.3" />
+		<PackageReference Include="Microsoft.Bcl.HashCode" Version="1.1.1" />
+		<PackageReference Include="System.Memory" Version="4.5.5" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -28,8 +32,9 @@
 	<ItemGroup>		
 		<ProjectReference Include="..\DotNetIsolator.WasmApp\DotNetIsolator.WasmApp.csproj">
 		  <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+		  <SkipGetTargetFrameworkProperties>true</SkipGetTargetFrameworkProperties>
 		</ProjectReference>
-		<Content Include="..\$(WasmAppProjectName)\bin\$(Configuration)\$(TargetFramework)\$(WasmAppProjectName).wasm">
+		<Content Include="..\$(WasmAppProjectName)\bin\$(Configuration)\net7.0\$(WasmAppProjectName).wasm">
 			<Visible>false</Visible>
 			<Link>$(BundledFilesDir)%(Filename)%(Extension)</Link>
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

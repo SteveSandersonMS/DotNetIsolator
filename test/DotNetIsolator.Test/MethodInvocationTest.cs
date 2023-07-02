@@ -114,7 +114,7 @@ public class MethodInvocationTest : IDisposable
 
     public void Dispose()
     {
-        _runtime.Dispose();
+        ((IDisposable)_runtime).Dispose();
     }
 
     class TestClass

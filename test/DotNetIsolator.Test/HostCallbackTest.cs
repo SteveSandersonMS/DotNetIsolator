@@ -116,7 +116,7 @@ public class HostCallbackTest : IDisposable
 
     public void Dispose()
     {
-        _runtime.Dispose();
+        ((IDisposable)_runtime).Dispose();
     }
 
     class Person
